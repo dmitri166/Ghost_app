@@ -1038,17 +1038,36 @@ jobs:
       github.ref == 'refs/heads/master' ||
       startsWith(github.ref, 'refs/heads/v')
     steps:
+      - name: Extract Image Tag
+        id: extract-tag
+        run: |
+          # Get the actual image tag from build outputs
+          IMAGE_TAGS="${{ needs.job_docker_build.outputs.image-tags }}"
+          echo "All image tags: $IMAGE_TAGS"
+          
+          # Extract the tag (latest, version, or sha)
+          if echo "$IMAGE_TAGS" | grep -q "latest"; then
+            TAG="latest"
+          elif echo "$IMAGE_TAGS" | grep -q "sha-"; then
+            TAG=$(echo "$IMAGE_TAGS" | grep -o "sha-[a-f0-9]*" | head -n1)
+          else
+            TAG=$(echo "$IMAGE_TAGS" | grep -o "ghcr\.io/[^:]*:[^[:space:]]*" | cut -d':' -f2 | sed 's/^[[:space:]]*//' | head -n1)
+          fi
+          
+          echo "Extracted tag: $TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
       - name: Checkout ghost_on_prem repo
         uses: actions/checkout@v4
         with:
           repository: dmitri166/ghost_on_prem_project
-          token: ${{ secrets.REPO_TOKEN }}
+          github-token: ${{ secrets.REPO_TOKEN }}
           path: ghost_on_prem
 
       - name: Update image tags in Helm values
         run: |
-          # Get the image tag from the build job
-          IMAGE_TAG=$(echo "${{ needs.job_docker_build.outputs.image-tags }}" | grep -o 'ghcr\.io/[^:]*:[^[:space:]]*' | cut -d':' -f2 | sed 's/^[[:space:]]*//' | head -n1)
+          # Get the image tag from previous step
+          IMAGE_TAG="${{ steps.extract-tag.outputs.tag }}"
           echo "Updating Helm values with image tag: $IMAGE_TAG"
           
           cd ghost_on_prem
@@ -1072,9 +1091,9 @@ jobs:
           fi
 
       - name: Create Pull Request for GitOps Update
-        uses: peter-evans/create-pull-request@v5
+        uses: actions/create-pull-request@v4
         with:
-          github-token: ${{ secrets.REPO_TOKEN }}
+          token: ${{ secrets.REPO_TOKEN }}
           repository: dmitri166/ghost_on_prem_project
           title: "ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}"
           body: |
