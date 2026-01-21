@@ -1031,7 +1031,7 @@ jobs:
   # GitOps Update - Update ghost_on_prem Helm values
   update-gitops:
     name: "🔄 Update GitOps"
-    needs: docker
+    needs: job_docker_build
     runs-on: ubuntu-latest
     if: |
       github.ref == 'refs/heads/main' || 
@@ -1048,7 +1048,7 @@ jobs:
       - name: Update image tags in Helm values
         run: |
           # Get the image tag from the build job
-          IMAGE_TAG=$(echo "${{ needs.docker.outputs.image-tags }}" | head -n1 | cut -d':' -f2)
+          IMAGE_TAG=$(echo "${{ needs.job_docker_build.outputs.image-tags }}" | head -n1 | cut -d':' -f2)
           echo "Updating Helm values with image tag: $IMAGE_TAG"
           
           cd ghost_on_prem
@@ -1077,14 +1077,14 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add applications/ghost-app/helm/values-*.yaml
-          git commit -m "ci: Update Ghost image to ${{ needs.docker.outputs.image-digest }}" || echo "No changes to commit"
+          git commit -m "ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}" || echo "No changes to commit"
           git push || echo "No changes to push"
 
       - name: GitOps Summary
         run: |
           echo "✅ GitOps configurations updated!"
-          echo "🏷️ Image: ${{ needs.docker.outputs.image-tags }}"
-          echo "🔍 Digest: ${{ needs.docker.outputs.image-digest }}"
+          echo "🏷️ Image: ${{ needs.job_docker_build.outputs.image-tags }}"
+          echo "🔍 Digest: ${{ needs.job_docker_build.outputs.image-digest }}"
           echo "🔄 ArgoCD will automatically sync these changes"
           echo "📦 Repository: dmitri166/ghost_on_prem"
 
