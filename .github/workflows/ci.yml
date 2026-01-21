@@ -1048,7 +1048,7 @@ jobs:
       - name: Update image tags in Helm values
         run: |
           # Get the image tag from the build job
-          IMAGE_TAG=$(echo "${{ needs.job_docker_build.outputs.image-tags }}" | grep -o 'ghcr\.io/[^:]*:[^[:space:]]*' | cut -d':' -f2 | head -n1)
+          IMAGE_TAG=$(echo "${{ needs.job_docker_build.outputs.image-tags }}" | grep -o 'ghcr\.io/[^:]*:[^[:space:]]*' | cut -d':' -f2 | sed 's/^[[:space:]]*//' | head -n1)
           echo "Updating Helm values with image tag: $IMAGE_TAG"
           
           cd ghost_on_prem
