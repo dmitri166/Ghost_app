@@ -1041,7 +1041,7 @@ jobs:
       - name: Checkout ghost_on_prem repo
         uses: actions/checkout@v4
         with:
-          repository: dmitri166/ghost_on_prem
+          repository: dmitri166/ghost_on_prem_project
           token: ${{ secrets.GITHUB_TOKEN }}
           path: ghost_on_prem
 
