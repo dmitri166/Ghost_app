@@ -1042,13 +1042,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: dmitri166/ghost_on_prem_project
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.REPO_TOKEN }}
           path: ghost_on_prem
 
       - name: Update image tags in Helm values
         run: |
           # Get the image tag from the build job
-          IMAGE_TAG=$(echo "${{ needs.job_docker_build.outputs.image-tags }}" | head -n1 | cut -d':' -f2)
+          IMAGE_TAG=$(echo "${{ needs.job_docker_build.outputs.image-tags }}" | grep -o 'ghcr\.io/[^:]*:[^[:space:]]*' | cut -d':' -f2 | head -n1)
           echo "Updating Helm values with image tag: $IMAGE_TAG"
           
           cd ghost_on_prem
@@ -1071,14 +1071,38 @@ jobs:
             echo "✅ Updated production environment with tag: $IMAGE_TAG"
           fi
 
-      - name: Commit and push changes
-        run: |
-          cd ghost_on_prem
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add applications/ghost-app/helm/values-*.yaml
-          git commit -m "ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}" || echo "No changes to commit"
-          git push || echo "No changes to push"
+      - name: Create Pull Request for GitOps Update
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.REPO_TOKEN }}
+          repository: dmitri166/ghost_on_prem_project
+          title: "ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}"
+          body: |
+            ## 🚀 Automated Ghost Image Update
+            
+            ### 📦 Image Information:
+            - **Repository:** ${{ needs.job_docker_build.outputs.image-tags }}
+            - **Digest:** ${{ needs.job_docker_build.outputs.image-digest }}
+            - **Source:** Ghost_app CI pipeline
+            
+            ### ✅ Pipeline Status:
+            - [x] Image built successfully
+            - [x] Security scan completed
+            - [x] Ready for deployment review
+            
+            ### 🔄 Next Steps:
+            1. Review the image tag changes below
+            2. Approve this PR to trigger ArgoCD deployment
+            3. Monitor deployment in your Kubernetes cluster
+            
+            ---
+            *This PR was automatically created by Ghost_app CI workflow #${{ github.run_number }}*
+          branch: update-ghost-image-${{ github.run_number }}
+          delete-branch: true
+          labels: |
+            automated-pr
+            ghost-image-update
+            gitops
 
       - name: GitOps Summary
         run: |
