@@ -1087,7 +1087,6 @@ jobs:
           echo "🔍 Digest: ${{ needs.docker.outputs.image-digest }}"
           echo "🔄 ArgoCD will automatically sync these changes"
           echo "📦 Repository: dmitri166/ghost_on_prem"
-      is-fork: ${{ steps.strategy.outputs.is-fork-pr }}
 
   job_inspect_image:
     name: Inspect Docker Image
