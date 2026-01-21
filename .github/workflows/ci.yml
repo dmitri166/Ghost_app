@@ -1074,7 +1074,7 @@ jobs:
       - name: Create Pull Request for GitOps Update
         uses: peter-evans/create-pull-request@v5
         with:
-          token: ${{ secrets.REPO_TOKEN }}
+          github-token: ${{ secrets.REPO_TOKEN }}
           repository: dmitri166/ghost_on_prem_project
           title: "ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}"
           body: |
