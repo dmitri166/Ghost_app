@@ -1,0 +1,21 @@
+# Ghost Application Configuration
+
+# Development
+NODE_ENV=development
+PORT=2368
+
+# Database (for local development)
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=password
+DB_NAME=ghost
+
+# Mail (for development)
+MAIL_TRANSPORT=direct
+MAIL_FROM=noreply@ghost.local
+
+# Production (will be overridden by environment variables)
+# url=https://yourdomain.com
+# mail=smtp
+# mailOptions.service=Mailgun
+# mailOptions.auth={user: "postmaster@mg.yourdomain.com", pass: "yourpassword"}
