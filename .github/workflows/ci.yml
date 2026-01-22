@@ -1095,14 +1095,13 @@ jobs:
         with:
           script: |
             const { repo, owner, token } = context.repo;
-            const { sha, runNumber } = context.payload;
             
             // Create PR using GitHub API
             await github.rest.pulls.create({
               owner: 'dmitri166',
               repo: 'ghost_on_prem_project',
-              title: `ci: Update Ghost image to ${sha}`,
-              head: `update-ghost-image-${runNumber}`,
+              title: `ci: Update Ghost image to ${{ context.sha }}`,
+              head: `update-ghost-image-${{ context.runNumber }}`,
               base: 'main',
               body: `
                 ## 🚀 Automated Ghost Image Update
@@ -1123,7 +1122,7 @@ jobs:
                 3. Monitor deployment in your Kubernetes cluster
                 
                 ---
-                *This PR was automatically created by Ghost_app CI workflow #${runNumber}*
+                *This PR was automatically created by Ghost_app CI workflow #${{ context.runNumber }}*
               `,
               token: token
             });
