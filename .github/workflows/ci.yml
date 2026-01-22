@@ -1096,7 +1096,68 @@ jobs:
           script: |
             const { repo, owner, token } = context.repo;
             
-            // Create PR using GitHub API
+            // First, create a new branch with the changes
+            await github.rest.repos.createOrUpdateFileContents({
+              owner: 'dmitri166',
+              repo: 'ghost_on_prem_project',
+              path: 'applications/ghost-app/helm/values-dev.yaml',
+              message: `ci: Update Ghost image to ${{ github.sha }}`,
+              content: Buffer.from(`# Ghost Development Values
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/dmitri166/ghost-development
+  tag: "${{ steps.extract-tag.outputs.tag }}"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 2368
+  type: ClusterIP
+
+serviceAccount:
+  create: true
+  name: ghost-dev
+
+ingress:
+  enabled: true
+  hosts:
+    - host: ghost-dev.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Persistent Storage
+persistence:
+  enabled: true
+  storageClass: "local-path"
+  size: 1Gi
+  accessMode: ReadWriteOnce
+
+# Database Configuration
+database:
+  client: mysql
+  connection:
+    host: mysql-dev
+    port: 3306
+    user: ghost
+    password: ghost123
+    database: ghost_dev
+
+ghost:
+  config:`).toString('base64'),
+              branch: `update-ghost-image-${{ github.run_number }}`
+            });
+            
+            // Then create the PR
             await github.rest.pulls.create({
               owner: 'dmitri166',
               repo: 'ghost_on_prem_project',
@@ -1123,10 +1184,9 @@ jobs:
                 
                 ---
                 *This PR was automatically created by Ghost_app CI workflow #${{ github.run_number }}*
-              `,
-              token: token
+              `
             });
-          token: ${{ secrets.REPO_TOKEN }}
+          github-token: ${{ secrets.REPO_TOKEN }}
 
       - name: GitOps Summary
         run: |
