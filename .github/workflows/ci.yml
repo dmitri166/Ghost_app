@@ -1127,7 +1127,7 @@ jobs:
               `,
               token: token
             });
-          github-token: ${{ secrets.REPO_TOKEN }}
+          token: ${{ secrets.REPO_TOKEN }}
 
       - name: GitOps Summary
         run: |
