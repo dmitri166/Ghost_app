@@ -1,5 +1,6 @@
 name: CI
 on:
+  workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
@@ -1061,7 +1062,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: dmitri166/ghost_on_prem_project
-          github-token: ${{ secrets.REPO_TOKEN }}
+          token: ${{ secrets.REPO_TOKEN }}
           path: ghost_on_prem
 
       - name: Update image tags in Helm values
