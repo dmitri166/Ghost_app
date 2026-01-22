@@ -1091,37 +1091,43 @@ jobs:
           fi
 
       - name: Create Pull Request for GitOps Update
-        uses: actions/create-pull-request@v4
+        uses: actions/github-script@v7
         with:
-          token: ${{ secrets.REPO_TOKEN }}
-          repository: dmitri166/ghost_on_prem_project
-          title: "ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}"
-          body: |
-            ## 🚀 Automated Ghost Image Update
+          script: |
+            const { repo, owner, token } = context.repo;
+            const { sha, runNumber } = context.payload;
             
-            ### 📦 Image Information:
-            - **Repository:** ${{ needs.job_docker_build.outputs.image-tags }}
-            - **Digest:** ${{ needs.job_docker_build.outputs.image-digest }}
-            - **Source:** Ghost_app CI pipeline
-            
-            ### ✅ Pipeline Status:
-            - [x] Image built successfully
-            - [x] Security scan completed
-            - [x] Ready for deployment review
-            
-            ### 🔄 Next Steps:
-            1. Review the image tag changes below
-            2. Approve this PR to trigger ArgoCD deployment
-            3. Monitor deployment in your Kubernetes cluster
-            
-            ---
-            *This PR was automatically created by Ghost_app CI workflow #${{ github.run_number }}*
-          branch: update-ghost-image-${{ github.run_number }}
-          delete-branch: true
-          labels: |
-            automated-pr
-            ghost-image-update
-            gitops
+            // Create PR using GitHub API
+            await github.rest.pulls.create({
+              owner: 'dmitri166',
+              repo: 'ghost_on_prem_project',
+              title: `ci: Update Ghost image to ${sha}`,
+              head: `update-ghost-image-${runNumber}`,
+              base: 'main',
+              body: `
+                ## 🚀 Automated Ghost Image Update
+                
+                ### 📦 Image Information:
+                - **Repository:** ${{ needs.job_docker_build.outputs.image-tags }}
+                - **Digest:** ${{ needs.job_docker_build.outputs.image-digest }}
+                - **Source:** Ghost_app CI pipeline
+                
+                ### ✅ Pipeline Status:
+                - [x] Image built successfully
+                - [x] Security scan completed
+                - [x] Ready for deployment review
+                
+                ### 🔄 Next Steps:
+                1. Review the image tag changes below
+                2. Approve this PR to trigger ArgoCD deployment
+                3. Monitor deployment in your Kubernetes cluster
+                
+                ---
+                *This PR was automatically created by Ghost_app CI workflow #${runNumber}*
+              `,
+              token: token
+            });
+          github-token: ${{ secrets.REPO_TOKEN }}
 
       - name: GitOps Summary
         run: |
