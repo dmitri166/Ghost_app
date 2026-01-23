@@ -1044,122 +1044,35 @@ jobs:
       github.ref == 'refs/heads/master' ||
       startsWith(github.ref, 'refs/heads/v')
     steps:
-      - name: 🔍 Comprehensive Docker Build Debug
-        run: |
-          echo "=== COMPREHENSIVE DOCKER BUILD ANALYSIS ==="
-          echo "Job Dependencies:"
-          echo "- needs.job_docker_build.outputs.image-tags: ${{ needs.job_docker_build.outputs.image-tags }}"
-          echo "- needs.job_docker_build.outputs.image-digest: ${{ needs.job_docker_build.outputs.image-digest }}"
-          
-          echo ""
-          echo "=== DOCKER BUILD JOB STATUS ==="
-          echo "Check if Docker build job actually succeeded and pushed images"
-          
-          # Check if we're on main branch
-          echo "Current branch: ${{ github.ref }}"
-          echo "Is main branch: ${{ github.ref == 'refs/heads/main' }}"
-          
-          # Check build strategy
-          echo ""
-          echo "=== BUILD STRATEGY ANALYSIS ==="
-          echo "This should tell us why we're getting 'main' tag instead of actual image"
-          
-          # Simulate what the Docker metadata action would generate
-          echo ""
-          echo "=== EXPECTED TAG ANALYSIS ==="
-          echo "For main branch push, we should get:"
-          echo "- ghcr.io/dmitri166/ghost-development:main"
-          echo "- ghcr.io/dmitri166/ghost-development:sha-$(git rev-parse --short HEAD)"
-          echo "- ghcr.io/dmitri166/ghost-development:latest"
-          
-          echo ""
-          echo "=== ROOT CAUSE ANALYSIS ==="
-          echo "Issues to investigate:"
-          echo "1. Is Docker build actually pushing to GHCR?"
-          echo "2. Are the outputs being captured correctly?"
-          echo "3. Is the image tag extraction logic wrong?"
-          echo "4. Is the image actually available in GHCR?"
-
       - name: Extract Image Tag
         id: extract-tag
         run: |
-          echo "=== DOCKER BUILD DEBUG INFO ==="
-          echo "Job outputs:"
-          echo "image-tags: ${{ needs.job_docker_build.outputs.image-tags }}"
-          echo "image-digest: ${{ needs.job_docker_build.outputs.image-digest }}"
-          
           # Get the actual image tag from build outputs
           IMAGE_TAGS="${{ needs.job_docker_build.outputs.image-tags }}"
           IMAGE_DIGEST="${{ needs.job_docker_build.outputs.image-digest }}"
           
-          echo "=== IMAGE TAGS DEBUG ==="
-          echo "Raw image tags output:"
-          echo "$IMAGE_TAGS"
-          echo "--- End of raw output ---"
-          
-          echo "=== IMAGE DIGEST DEBUG ==="
-          echo "Raw image digest output:"
-          echo "$IMAGE_DIGEST"
-          echo "--- End of raw digest ---"
-          
-          # Check if image tags are empty
-          if [ -z "$IMAGE_TAGS" ]; then
-            echo "❌ ERROR: IMAGE_TAGS is empty!"
-            echo "This means the Docker build job didn't output image tags properly"
-            exit 1
-          fi
-          
-          # Extract the best tag from the multi-line tags output
-          # Priority: SHA tag > latest > branch tag
+          # Smart tag selection: SHA tag > latest > branch tag
           SHA_TAG=$(echo "$IMAGE_TAGS" | grep "sha-" | head -n1 | tr -d '\r\n')
           LATEST_TAG=$(echo "$IMAGE_TAGS" | grep ":latest" | head -n1 | tr -d '\r\n')
           FIRST_TAG=$(echo "$IMAGE_TAGS" | head -n1 | tr -d '\r\n')
           
-          echo "Available tags analysis:"
-          echo "- SHA tag: '$SHA_TAG'"
-          echo "- Latest tag: '$LATEST_TAG'"
-          echo "- First tag: '$FIRST_TAG'"
-          
           # Choose the best tag
           if [ -n "$SHA_TAG" ]; then
             SELECTED_TAG="$SHA_TAG"
-            echo "Selected SHA tag (most reliable): $SELECTED_TAG"
+            TAG=$(echo "$SELECTED_TAG" | sed 's|.*:||')
           elif [ -n "$LATEST_TAG" ]; then
             SELECTED_TAG="$LATEST_TAG"
-            echo "Selected latest tag: $SELECTED_TAG"
+            TAG=$(echo "$SELECTED_TAG" | sed 's|.*:||')
           else
             SELECTED_TAG="$FIRST_TAG"
-            echo "Selected first tag (fallback): $SELECTED_TAG"
+            TAG=$(echo "$SELECTED_TAG" | sed 's|.*:||')
           fi
           
-          # Extract tag name from the full image URL
-          if echo "$SELECTED_TAG" | grep -q "ghcr.io"; then
-            # Extract tag from ghcr.io URL (format: ghcr.io/user/repo:tag)
-            TAG=$(echo "$SELECTED_TAG" | sed 's|.*:||')
-            echo "Extracted tag from ghcr.io URL: $TAG"
-          elif echo "$SELECTED_TAG" | grep -q ":"; then
-            # Extract tag from any image:tag format
-            TAG=$(echo "$SELECTED_TAG" | sed 's|.*:||')
-            echo "Extracted tag from generic format: $TAG"
-          else
-            # Fallback to digest-based tag
-            TAG=$(echo "$IMAGE_DIGEST" | cut -d':' -f2 | cut -c1-12)
-            echo "Fallback tag from digest: $TAG"
-          fi
-          
-          echo "=== FINAL RESULTS ==="
-          echo "Selected full image: '$SELECTED_TAG'"
-          echo "Extracted tag: '$TAG'"
+          echo "Selected image: $SELECTED_TAG"
+          echo "Extracted tag: $TAG"
           
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "full-image=$SELECTED_TAG" >> $GITHUB_OUTPUT
-          
-          # Additional debug: Check if we should use latest instead
-          if [ "$TAG" = "main" ]; then
-            echo "⚠️ WARNING: Tag is 'main', this might not be the correct image tag"
-            echo "Consider using 'latest' or the actual commit SHA"
-            echo "This explains why the image is not available - we need the actual pushed image tag"
-          fi
 
       - name: Checkout ghost_on_prem repo
         uses: actions/checkout@v4
@@ -1291,14 +1204,14 @@ jobs:
           script: |
             const { repo, owner, token } = context.repo;
             
-            // Create PR using GitHub API with proper YAML syntax
+            // Create PR using GitHub API
             await github.rest.pulls.create({
               owner: 'dmitri166',
               repo: 'ghost_on_prem_project',
               title: "ci: Update Ghost image to ${{ github.sha }}",
               head: "update-ghost-image-${{ github.run_number }}",
               base: "main",
-              body: "## Automated Ghost Image Update\\n\\n### Image Information:\\n- **Repository:** ${{ needs.job_docker_build.outputs.image-tags }}\\n- **Digest:** ${{ needs.job_docker_build.outputs.image-digest }}\\n- **Source:** Ghost_app CI pipeline\\n\\n### Pipeline Status:\\n- [x] Image built successfully\\n- [x] Security scan completed\\n- [x] Ready for deployment review\\n\\n### Next Steps:\\n1. Review the image tag changes below\\n2. Approve this PR to trigger ArgoCD deployment\\n3. Monitor deployment in your Kubernetes cluster\\n\\n---\\n*This PR was automatically created by Ghost_app CI workflow #${{ github.run_number }}*"
+              body: "Automated Ghost Image Update. Repository: ${{ needs.job_docker_build.outputs.image-tags }}. Digest: ${{ needs.job_docker_build.outputs.image-digest }}. Source: Ghost_app CI pipeline. Pipeline Status: Image built successfully, Security scan completed, Ready for deployment review. Next Steps: Review the image tag changes below, Approve this PR to trigger ArgoCD deployment, Monitor deployment in your Kubernetes cluster. This PR was automatically created by Ghost_app CI workflow #${{ github.run_number }}."
             });
           github-token: ${{ secrets.REPO_TOKEN }}
 
