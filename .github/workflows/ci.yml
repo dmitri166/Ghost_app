@@ -1047,33 +1047,63 @@ jobs:
       - name: Extract Image Tag
         id: extract-tag
         run: |
+          echo "=== DOCKER BUILD DEBUG INFO ==="
+          echo "Job outputs:"
+          echo "image-tags: ${{ needs.job_docker_build.outputs.image-tags }}"
+          echo "image-digest: ${{ needs.job_docker_build.outputs.image-digest }}"
+          
           # Get the actual image tag from build outputs
           IMAGE_TAGS="${{ needs.job_docker_build.outputs.image-tags }}"
           IMAGE_DIGEST="${{ needs.job_docker_build.outputs.image-digest }}"
-          echo "All image tags:"
+          
+          echo "=== IMAGE TAGS DEBUG ==="
+          echo "Raw image tags output:"
           echo "$IMAGE_TAGS"
-          echo "Image digest: $IMAGE_DIGEST"
+          echo "--- End of raw output ---"
+          
+          echo "=== IMAGE DIGEST DEBUG ==="
+          echo "Raw image digest output:"
+          echo "$IMAGE_DIGEST"
+          echo "--- End of raw digest ---"
+          
+          # Check if image tags are empty
+          if [ -z "$IMAGE_TAGS" ]; then
+            echo "❌ ERROR: IMAGE_TAGS is empty!"
+            echo "This means the Docker build job didn't output image tags properly"
+            exit 1
+          fi
           
           # Extract the first tag from the multi-line tags output
-          # docker/metadata-action outputs multiple tags, we want the first one
           FIRST_TAG=$(echo "$IMAGE_TAGS" | head -n1 | tr -d '\r\n')
-          echo "First tag: $FIRST_TAG"
+          echo "First tag (raw): '$FIRST_TAG'"
           
           # Extract tag name from the full image URL
           if echo "$FIRST_TAG" | grep -q "ghcr.io"; then
             # Extract tag from ghcr.io URL (format: ghcr.io/user/repo:tag)
             TAG=$(echo "$FIRST_TAG" | sed 's|.*:||')
+            echo "Extracted tag from ghcr.io URL: $TAG"
           elif echo "$FIRST_TAG" | grep -q ":"; then
             # Extract tag from any image:tag format
             TAG=$(echo "$FIRST_TAG" | sed 's|.*:||')
+            echo "Extracted tag from generic format: $TAG"
           else
             # Fallback to digest-based tag
             TAG=$(echo "$IMAGE_DIGEST" | cut -d':' -f2 | cut -c1-12)
+            echo "Fallback tag from digest: $TAG"
           fi
           
-          echo "Extracted tag: $TAG"
+          echo "=== FINAL RESULTS ==="
+          echo "Extracted tag: '$TAG'"
+          echo "Full image: '$FIRST_TAG'"
+          
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "full-image=$FIRST_TAG" >> $GITHUB_OUTPUT
+          
+          # Additional debug: Check if we should use latest instead
+          if [ "$TAG" = "main" ]; then
+            echo "⚠️ WARNING: Tag is 'main', this might not be the correct image tag"
+            echo "Consider using 'latest' or the actual commit SHA"
+          fi
 
       - name: Checkout ghost_on_prem repo
         uses: actions/checkout@v4
@@ -1212,28 +1242,27 @@ jobs:
               title: `ci: Update Ghost image to ${{ github.sha }}`,
               head: `update-ghost-image-${{ github.run_number }}`,
               base: 'main',
-              body: |
-                ## 🚀 Automated Ghost Image Update
+              body: `## 🚀 Automated Ghost Image Update
                 
-                ### 📦 Image Information:
-                - **Repository:** ${{ needs.job_docker_build.outputs.image-tags }}
-                - **Digest:** ${{ needs.job_docker_build.outputs.image-digest }}
-                - **Source:** Ghost_app CI pipeline
+### 📦 Image Information:
+- **Repository:** ${{ needs.job_docker_build.outputs.image-tags }}
+- **Digest:** ${{ needs.job_docker_build.outputs.image-digest }}
+- **Source:** Ghost_app CI pipeline
                 
-                ### ✅ Pipeline Status:
-                - [x] Image built successfully
-                - [x] Security scan completed
-                - [x] Ready for deployment review
+### ✅ Pipeline Status:
+- [x] Image built successfully
+- [x] Security scan completed
+- [x] Ready for deployment review
                 
-                ### 🔄 Next Steps:
-                1. Review the image tag changes below
-                2. Approve this PR to trigger ArgoCD deployment
-                3. Monitor deployment in your Kubernetes cluster
+### 🔄 Next Steps:
+1. Review the image tag changes below
+2. Approve this PR to trigger ArgoCD deployment
+3. Monitor deployment in your Kubernetes cluster
                 
-                ---
-                *This PR was automatically created by Ghost_app CI workflow #${{ github.run_number }}*
+---
+*This PR was automatically created by Ghost_app CI workflow #${{ github.run_number }}*`
             });
-          token: ${{ secrets.REPO_TOKEN }}
+          github-token: ${{ secrets.REPO_TOKEN }}
 
       - name: GitOps Summary
         run: |
