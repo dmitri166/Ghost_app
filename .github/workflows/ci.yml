@@ -1144,7 +1144,15 @@ jobs:
           BASE_SHA=$(git rev-parse HEAD~1)
           echo "Base SHA: $BASE_SHA"
           
-          # Create the branch using GitHub API
+          # Get the base SHA from master branch
+          BASE_SHA=$(curl -s -H "Authorization: token $PAT_TOKEN" \
+            https://api.github.com/repos/dmitri166/ghost_on_prem_project/git/refs/heads/master | \
+            jq -r .object.sha)
+          
+          echo "Base SHA from master: $BASE_SHA"
+          
+          # Create the new branch first
+          echo "=== Creating branch update-ghost-image-${{ github.run_number }} ==="
           curl -X POST \
             -H "Authorization: token $PAT_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
