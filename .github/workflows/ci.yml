@@ -1079,7 +1079,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: dmitri166/ghost_on_prem_project
-          github-token: ${{ secrets.REPO_TOKEN }}
+          token: ${{ secrets.REPO_TOKEN }}
           path: ghost_on_prem
 
       - name: Update image tags in Helm values
@@ -1088,6 +1088,7 @@ jobs:
           IMAGE_TAG="${{ steps.extract-tag.outputs.tag }}"
           echo "Updating Helm values with image tag: $IMAGE_TAG"
           
+          # Checkout just to read the files (no push needed)
           cd ghost_on_prem
           
           # Update development environment
@@ -1107,46 +1108,48 @@ jobs:
             sed -i "s|tag:.*|tag: $IMAGE_TAG|" applications/ghost-app/helm/values-prod.yaml
             echo "✅ Updated production environment with tag: $IMAGE_TAG"
           fi
-
-      - name: Commit and Push Changes
-        env:
-          PAT_TOKEN: ${{ secrets.REPO_TOKEN }}
-        run: |
-          cd ghost_on_prem
           
-          # Debug: Check PAT availability
-          echo "=== PAT Debug Info ==="
-          echo "PAT_TOKEN length: ${#PAT_TOKEN}"
-          if [ -n "$PAT_TOKEN" ]; then
-            echo "PAT_TOKEN starts with: ${PAT_TOKEN:0:10}..."
-          else
-            echo "❌ PAT_TOKEN is empty!"
-            exit 1
-          fi
+          # Use GitHub API to create branch and update files
+          echo "=== Using GitHub API for all operations ==="
           
-          # Configure git
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          PAT_TOKEN="${{ secrets.REPO_TOKEN }}"
+          BRANCH_NAME="update-ghost-image-${{ github.run_number }}"
           
-          # Configure git to use PAT token for authentication
-          git config credential.helper "store --file=/tmp/git-credentials"
-          printf "https://dmitri166:%s@github.com\n" "$PAT_TOKEN" > /tmp/git-credentials
+          # Get base SHA from master
+          BASE_SHA=$(curl -s -H "Authorization: token $PAT_TOKEN" \
+            https://api.github.com/repos/dmitri166/ghost_on_prem_project/git/refs/heads/master | \
+            jq -r .object.sha)
           
-          # Create and checkout new branch
-          git checkout -b update-ghost-image-${{ github.run_number }}
+          echo "Base SHA: $BASE_SHA"
           
-          # Add updated files
-          git add applications/ghost-app/helm/values-*.yaml
+          # Create branch
+          curl -X POST \
+            -H "Authorization: token $PAT_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/dmitri166/ghost_on_prem_project/git/refs \
+            -d "{
+              \"ref\": \"refs/heads/$BRANCH_NAME\",
+              \"sha\": \"$BASE_SHA\"
+            }"
           
-          # Commit changes
-          git commit -m "ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}"
+          # Update each file using GitHub API
+          for file in applications/ghost-app/helm/values-dev.yaml applications/ghost-app/helm/values-staging.yaml applications/ghost-app/helm/values-prod.yaml; do
+            if [ -f "$file" ]; then
+              echo "=== Updating $file ==="
+              CONTENT=$(cat "$file" | base64 -w 0)
+              curl -X PUT \
+                -H "Authorization: token $PAT_TOKEN" \
+                -H "Accept: application/vnd.github.v3+json" \
+                https://api.github.com/repos/dmitri166/ghost_on_prem_project/contents/$file \
+                -d "{
+                  \"message\": \"ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}\",
+                  \"content\": \"$CONTENT\",
+                  \"branch\": \"$BRANCH_NAME\"
+                }"
+            fi
+          done
           
-          # Push the branch using configured credentials
-          echo "=== Pushing branch to remote ==="
-          git remote set-url origin https://github.com/dmitri166/ghost_on_prem_project.git
-          git push -u origin update-ghost-image-${{ github.run_number }}
-          
-          echo "✅ Files updated and pushed successfully!"
+          echo "✅ Files updated successfully via GitHub API!"
 
       - name: Create Pull Request for GitOps Update
         uses: actions/github-script@v7
