@@ -35,7 +35,7 @@ jobs:
         id: image
         run: |
           # Generate the image tag that was built by CI
-          IMAGE_TAG="ghcr.io/dmitri166/ghost-development:v${{ steps.version.outputs.version }}"
+          IMAGE_TAG="ghcr.io/dmitri166/ghost-production:v${{ steps.version.outputs.version }}"
           echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "Expected image tag: $IMAGE_TAG"
 
@@ -62,7 +62,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/dmitri166/ghost-development
+          images: ghcr.io/dmitri166/ghost-production
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -73,17 +73,17 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile
+          file: Dockerfile.production
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
-            org.opencontainers.image.title=Ghost Development
-            org.opencontainers.image.description=Ghost v${{ needs.extract-version.outputs.version }}
+            org.opencontainers.image.title=Ghost Production
+            org.opencontainers.image.description=Ghost v${{ needs.extract-version.outputs.version }} Production Build
             org.opencontainers.image.vendor=TryGhost
             org.opencontainers.image.version=v${{ needs.extract-version.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=registry,ref=ghcr.io/dmitri166/ghost-development:cache-main
-          cache-to: type=registry,ref=ghcr.io/dmitri166/ghost-development:cache-main,mode=max
+          cache-to: type=registry,ref=ghcr.io/dmitri166/ghost-production:cache-main,mode=max
 
   # GitOps Update - Update ghost_on_prem Helm values
   update-gitops:
@@ -109,24 +109,27 @@ jobs:
           
           # Update development environment
           if [ -f "applications/ghost-app/helm/values-dev.yaml" ]; then
-            sed -i "s|tag: \".*\"|tag: \"v$VERSION\"|" applications/ghost-app/helm/values-dev.yaml
-            echo "✅ Updated development environment with tag: v$VERSION"
+            sed -i "s|repository: .*|repository: ghcr.io/dmitri166/ghost-production|" applications/ghost-app/helm/values-dev.yaml
+            sed -i "s|tag: \".*\"|tag: \"$VERSION\"|" applications/ghost-app/helm/values-dev.yaml
+            echo "✅ Updated development environment with tag: $VERSION"
           else
             echo "❌ File not found: applications/ghost-app/helm/values-dev.yaml"
           fi
 
           # Update staging environment
           if [ -f "applications/ghost-app/helm/values-staging.yaml" ]; then
-            sed -i "s|tag: \".*\"|tag: \"v$VERSION\"|" applications/ghost-app/helm/values-staging.yaml
-            echo "✅ Updated staging environment with tag: v$VERSION"
+            sed -i "s|repository: .*|repository: ghcr.io/dmitri166/ghost-production|" applications/ghost-app/helm/values-staging.yaml
+            sed -i "s|tag: \".*\"|tag: \"$VERSION\"|" applications/ghost-app/helm/values-staging.yaml
+            echo "✅ Updated staging environment with tag: $VERSION"
           else
             echo "❌ File not found: applications/ghost-app/helm/values-staging.yaml"
           fi
 
           # Update production environment
           if [ -f "applications/ghost-app/helm/values-prod.yaml" ]; then
-            sed -i "s|tag: \".*\"|tag: \"v$VERSION\"|" applications/ghost-app/helm/values-prod.yaml
-            echo "✅ Updated production environment with tag: v$VERSION"
+            sed -i "s|repository: .*|repository: ghcr.io/dmitri166/ghost-production|" applications/ghost-app/helm/values-prod.yaml
+            sed -i "s|tag: \".*\"|tag: \"$VERSION\"|" applications/ghost-app/helm/values-prod.yaml
+            echo "✅ Updated production environment with tag: $VERSION"
           else
             echo "❌ File not found: applications/ghost-app/helm/values-prod.yaml"
           fi
@@ -139,7 +142,7 @@ jobs:
           path: ghost_on_prem
           branch: update-ghost-image-${{ needs.extract-version.outputs.version }}
           base: master
-          title: "release: Update Ghost image to v${{ needs.extract-version.outputs.version }}"
+          title: "release: Update Ghost production image to ${{ needs.extract-version.outputs.version }}"
           body: |
             Ghost Release Update
             
@@ -149,7 +152,8 @@ jobs:
             ---
             
             Changes:
-            - Updated Ghost image to v${{ needs.extract-version.outputs.version }}
+            - Updated Ghost production image to ${{ needs.extract-version.outputs.version }}
+            - Switched to production-ready Ghost build
             - Ready for ArgoCD deployment
             - All environments updated (dev, staging, prod)
             
@@ -166,7 +170,7 @@ jobs:
             - Triggered by: Tag v${{ needs.extract-version.outputs.version }}
             - Workflow: #${{ github.run_number }}
             - Commit: ${{ github.sha }}
-          commit-message: "release: Update Ghost image to v${{ needs.extract-version.outputs.version }}"
+          commit-message: "release: Update Ghost production image to ${{ needs.extract-version.outputs.version }}"
           delete-branch: true
 
   # Create GitHub Release
@@ -181,7 +185,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref }}
-          release_name: Ghost v${{ needs.extract-version.outputs.version }}
+          release_name: Ghost Production v${{ needs.extract-version.outputs.version }}
           body: |
             Ghost v${{ needs.extract-version.outputs.version }} Release
             
