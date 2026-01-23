@@ -1095,7 +1095,7 @@ jobs:
         run: |
           cd ghost_on_prem
           
-          # Configure git
+          # Configure git with PAT
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           
@@ -1108,8 +1108,8 @@ jobs:
           # Commit changes
           git commit -m "ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}"
           
-          # Push branch to remote
-          git push origin update-ghost-image-${{ github.run_number }}
+          # Push branch to remote using PAT
+          git push https://${{ secrets.REPO_TOKEN }}@github.com/dmitri166/ghost_on_prem_project.git update-ghost-image-${{ github.run_number }}
 
       - name: Create Pull Request for GitOps Update
         uses: actions/github-script@v7
