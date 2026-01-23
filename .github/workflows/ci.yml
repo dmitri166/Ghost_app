@@ -1044,6 +1044,42 @@ jobs:
       github.ref == 'refs/heads/master' ||
       startsWith(github.ref, 'refs/heads/v')
     steps:
+      - name: 🔍 Comprehensive Docker Build Debug
+        run: |
+          echo "=== COMPREHENSIVE DOCKER BUILD ANALYSIS ==="
+          echo "Job Dependencies:"
+          echo "- needs.job_docker_build.outputs.image-tags: ${{ needs.job_docker_build.outputs.image-tags }}"
+          echo "- needs.job_docker_build.outputs.image-digest: ${{ needs.job_docker_build.outputs.image-digest }}"
+          
+          echo ""
+          echo "=== DOCKER BUILD JOB STATUS ==="
+          echo "Check if Docker build job actually succeeded and pushed images"
+          
+          # Check if we're on main branch
+          echo "Current branch: ${{ github.ref }}"
+          echo "Is main branch: ${{ github.ref == 'refs/heads/main' }}"
+          
+          # Check build strategy
+          echo ""
+          echo "=== BUILD STRATEGY ANALYSIS ==="
+          echo "This should tell us why we're getting 'main' tag instead of actual image"
+          
+          # Simulate what the Docker metadata action would generate
+          echo ""
+          echo "=== EXPECTED TAG ANALYSIS ==="
+          echo "For main branch push, we should get:"
+          echo "- ghcr.io/dmitri166/ghost-development:main"
+          echo "- ghcr.io/dmitri166/ghost-development:sha-$(git rev-parse --short HEAD)"
+          echo "- ghcr.io/dmitri166/ghost-development:latest"
+          
+          echo ""
+          echo "=== ROOT CAUSE ANALYSIS ==="
+          echo "Issues to investigate:"
+          echo "1. Is Docker build actually pushing to GHCR?"
+          echo "2. Are the outputs being captured correctly?"
+          echo "3. Is the image tag extraction logic wrong?"
+          echo "4. Is the image actually available in GHCR?"
+
       - name: Extract Image Tag
         id: extract-tag
         run: |
@@ -1103,6 +1139,7 @@ jobs:
           if [ "$TAG" = "main" ]; then
             echo "⚠️ WARNING: Tag is 'main', this might not be the correct image tag"
             echo "Consider using 'latest' or the actual commit SHA"
+            echo "This explains why the image is not available - we need the actual pushed image tag"
           fi
 
       - name: Checkout ghost_on_prem repo
@@ -1239,29 +1276,30 @@ jobs:
             await github.rest.pulls.create({
               owner: 'dmitri166',
               repo: 'ghost_on_prem_project',
-              title: `ci: Update Ghost image to ${{ github.sha }}`,
-              head: `update-ghost-image-${{ github.run_number }}`,
+              title: `ci: Update Ghost image to ${github.sha}`,
+              head: `update-ghost-image-${github.run_number}`,
               base: 'main',
-              body: |
-                ## 🚀 Automated Ghost Image Update
-                
-                ### 📦 Image Information:
-                - **Repository:** ${{ needs.job_docker_build.outputs.image-tags }}
-                - **Digest:** ${{ needs.job_docker_build.outputs.image-digest }}
-                - **Source:** Ghost_app CI pipeline
-                
-                ### ✅ Pipeline Status:
-                - [x] Image built successfully
-                - [x] Security scan completed
-                - [x] Ready for deployment review
-                
-                ### 🔄 Next Steps:
-                1. Review the image tag changes below
-                2. Approve this PR to trigger ArgoCD deployment
-                3. Monitor deployment in your Kubernetes cluster
-                
-                ---
-                *This PR was automatically created by Ghost_app CI workflow #${{ github.run_number }}*
+              body: `
+## Automated Ghost Image Update
+
+### Image Information:
+- **Repository:** ${needs.job_docker_build.outputs.image-tags}
+- **Digest:** ${needs.job_docker_build.outputs.image-digest}
+- **Source:** Ghost_app CI pipeline
+
+### Pipeline Status:
+- [x] Image built successfully
+- [x] Security scan completed
+- [x] Ready for deployment review
+
+### Next Steps:
+1. Review the image tag changes below
+2. Approve this PR to trigger ArgoCD deployment
+3. Monitor deployment in your Kubernetes cluster
+
+---
+*This PR was automatically created by Ghost_app CI workflow #${github.run_number}*
+`,
             });
           github-token: ${{ secrets.REPO_TOKEN }}
 
