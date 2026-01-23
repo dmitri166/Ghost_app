@@ -39,20 +39,20 @@ runs:
       id: pull
       shell: bash
       run: |
-        # Smart tag selection: SHA tag > latest > branch tag
-        SHA_TAG=$(echo "${{ inputs.image-tags }}" | grep "sha-" | head -n1 | tr -d '\r\n')
+        # Smart tag selection: Semantic version > latest > branch tag
+        SEMVER_TAG=$(echo "${{ inputs.image-tags }}" | grep -E ":[0-9]+\.[0-9]+\.[0-9]+" | head -n1 | tr -d '\r\n')
         LATEST_TAG=$(echo "${{ inputs.image-tags }}" | grep ":latest" | head -n1 | tr -d '\r\n')
         FIRST_TAG=$(echo "${{ inputs.image-tags }}" | head -n1 | tr -d '\r\n')
         
         echo "Available tags analysis:"
-        echo "- SHA tag: '$SHA_TAG'"
+        echo "- Semantic version tag: '$SEMVER_TAG'"
         echo "- Latest tag: '$LATEST_TAG'"
         echo "- First tag: '$FIRST_TAG'"
         
         # Choose the best tag
-        if [ -n "$SHA_TAG" ]; then
-          IMAGE_TAG="$SHA_TAG"
-          echo "Selected SHA tag (most reliable): $IMAGE_TAG"
+        if [ -n "$SEMVER_TAG" ]; then
+          IMAGE_TAG="$SEMVER_TAG"
+          echo "Selected semantic version tag: $IMAGE_TAG"
         elif [ -n "$LATEST_TAG" ]; then
           IMAGE_TAG="$LATEST_TAG"
           echo "Selected latest tag: $IMAGE_TAG"
