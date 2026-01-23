@@ -1109,18 +1109,37 @@ jobs:
             exit 1
           fi
           
-          # Extract the first tag from the multi-line tags output
+          # Extract the best tag from the multi-line tags output
+          # Priority: SHA tag > latest > branch tag
+          SHA_TAG=$(echo "$IMAGE_TAGS" | grep "sha-" | head -n1 | tr -d '\r\n')
+          LATEST_TAG=$(echo "$IMAGE_TAGS" | grep ":latest" | head -n1 | tr -d '\r\n')
           FIRST_TAG=$(echo "$IMAGE_TAGS" | head -n1 | tr -d '\r\n')
-          echo "First tag (raw): '$FIRST_TAG'"
+          
+          echo "Available tags analysis:"
+          echo "- SHA tag: '$SHA_TAG'"
+          echo "- Latest tag: '$LATEST_TAG'"
+          echo "- First tag: '$FIRST_TAG'"
+          
+          # Choose the best tag
+          if [ -n "$SHA_TAG" ]; then
+            SELECTED_TAG="$SHA_TAG"
+            echo "Selected SHA tag (most reliable): $SELECTED_TAG"
+          elif [ -n "$LATEST_TAG" ]; then
+            SELECTED_TAG="$LATEST_TAG"
+            echo "Selected latest tag: $SELECTED_TAG"
+          else
+            SELECTED_TAG="$FIRST_TAG"
+            echo "Selected first tag (fallback): $SELECTED_TAG"
+          fi
           
           # Extract tag name from the full image URL
-          if echo "$FIRST_TAG" | grep -q "ghcr.io"; then
+          if echo "$SELECTED_TAG" | grep -q "ghcr.io"; then
             # Extract tag from ghcr.io URL (format: ghcr.io/user/repo:tag)
-            TAG=$(echo "$FIRST_TAG" | sed 's|.*:||')
+            TAG=$(echo "$SELECTED_TAG" | sed 's|.*:||')
             echo "Extracted tag from ghcr.io URL: $TAG"
-          elif echo "$FIRST_TAG" | grep -q ":"; then
+          elif echo "$SELECTED_TAG" | grep -q ":"; then
             # Extract tag from any image:tag format
-            TAG=$(echo "$FIRST_TAG" | sed 's|.*:||')
+            TAG=$(echo "$SELECTED_TAG" | sed 's|.*:||')
             echo "Extracted tag from generic format: $TAG"
           else
             # Fallback to digest-based tag
@@ -1129,11 +1148,11 @@ jobs:
           fi
           
           echo "=== FINAL RESULTS ==="
+          echo "Selected full image: '$SELECTED_TAG'"
           echo "Extracted tag: '$TAG'"
-          echo "Full image: '$FIRST_TAG'"
           
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "full-image=$FIRST_TAG" >> $GITHUB_OUTPUT
+          echo "full-image=$SELECTED_TAG" >> $GITHUB_OUTPUT
           
           # Additional debug: Check if we should use latest instead
           if [ "$TAG" = "main" ]; then
