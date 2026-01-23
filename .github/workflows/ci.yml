@@ -1116,28 +1116,50 @@ jobs:
           BRANCH_NAME="update-ghost-image-${{ github.run_number }}"
           
           # Get base SHA from master
+          echo "Getting base SHA from master..."
           BASE_SHA=$(curl -s -H "Authorization: token $PAT_TOKEN" \
             https://api.github.com/repos/dmitri166/ghost_on_prem_project/git/refs/heads/master | \
             jq -r .object.sha)
           
           echo "Base SHA: $BASE_SHA"
           
-          # Create branch
-          curl -X POST \
+          # Create branch from master
+          echo "Creating branch: $BRANCH_NAME from master"
+          BRANCH_RESPONSE=$(curl -X POST \
             -H "Authorization: token $PAT_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/dmitri166/ghost_on_prem_project/git/refs \
             -d "{
               \"ref\": \"refs/heads/$BRANCH_NAME\",
               \"sha\": \"$BASE_SHA\"
-            }"
+            }")
           
-          # Update each file using GitHub API
+          echo "Branch creation response: $BRANCH_RESPONSE"
+          
+          # Wait a moment for branch to be fully created
+          sleep 2
+          
+          # Check if branch was created successfully
+          BRANCH_CHECK=$(curl -s -H "Authorization: token $PAT_TOKEN" \
+            https://api.github.com/repos/dmitri166/ghost_on_prem_project/git/refs/heads/$BRANCH_NAME)
+          
+          echo "Branch check response: $BRANCH_CHECK"
+          
+          if echo "$BRANCH_CHECK" | grep -q "Not Found"; then
+            echo "❌ Branch creation failed!"
+            exit 1
+          fi
+          
+          echo "✅ Branch created successfully!"
+          
+          # Now update each file using GitHub API on the new branch
           for file in applications/ghost-app/helm/values-dev.yaml applications/ghost-app/helm/values-staging.yaml applications/ghost-app/helm/values-prod.yaml; do
             if [ -f "$file" ]; then
               echo "=== Updating $file ==="
               CONTENT=$(cat "$file" | base64 -w 0)
-              curl -X PUT \
+              echo "Content length: ${#CONTENT}"
+              
+              UPDATE_RESPONSE=$(curl -X PUT \
                 -H "Authorization: token $PAT_TOKEN" \
                 -H "Accept: application/vnd.github.v3+json" \
                 https://api.github.com/repos/dmitri166/ghost_on_prem_project/contents/$file \
@@ -1145,7 +1167,16 @@ jobs:
                   \"message\": \"ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}\",
                   \"content\": \"$CONTENT\",
                   \"branch\": \"$BRANCH_NAME\"
-                }"
+                }")
+              
+              echo "Update response for $file: $UPDATE_RESPONSE"
+              
+              if echo "$UPDATE_RESPONSE" | grep -q "error"; then
+                echo "❌ File update failed for $file!"
+                echo "$UPDATE_RESPONSE"
+              else
+                echo "✅ File updated successfully: $file"
+              fi
             fi
           done
           
