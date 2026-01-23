@@ -1049,15 +1049,21 @@ jobs:
         run: |
           # Get the actual image tag from build outputs
           IMAGE_TAGS="${{ needs.job_docker_build.outputs.image-tags }}"
+          IMAGE_DIGEST="${{ needs.job_docker_build.outputs.image-digest }}"
           echo "All image tags: $IMAGE_TAGS"
+          echo "Image digest: $IMAGE_DIGEST"
           
-          # Extract the tag (latest, version, or sha)
-          if echo "$IMAGE_TAGS" | grep -q "latest"; then
+          # Extract the tag from the image tags
+          if echo "$IMAGE_TAGS" | grep -q "ghcr.io"; then
+            # Extract tag from ghcr.io URL
+            TAG=$(echo "$IMAGE_TAGS" | grep -o "ghcr\.io/[^:]*:[^[:space:]]*" | cut -d':' -f2 | sed 's/^[[:space:]]*//' | head -n1)
+          elif echo "$IMAGE_TAGS" | grep -q "latest"; then
             TAG="latest"
           elif echo "$IMAGE_TAGS" | grep -q "sha-"; then
             TAG=$(echo "$IMAGE_TAGS" | grep -o "sha-[a-f0-9]*" | head -n1)
           else
-            TAG=$(echo "$IMAGE_TAGS" | grep -o "ghcr\.io/[^:]*:[^[:space:]]*" | cut -d':' -f2 | sed 's/^[[:space:]]*//' | head -n1)
+            # Fallback to digest-based tag
+            TAG=$(echo "$IMAGE_DIGEST" | cut -d':' -f2 | cut -c1-12)
           fi
           
           echo "Extracted tag: $TAG"
@@ -1109,40 +1115,12 @@ jobs:
             echo "PAT_TOKEN starts with: ${PAT_TOKEN:0:10}..."
           else
             echo "❌ PAT_TOKEN is empty!"
-            echo "Available secrets check:"
-            echo "REPO_TOKEN exists: ${{ secrets.REPO_TOKEN != '' }}"
-            echo "GITHUB_TOKEN: ${{ github.token }}"
+            exit 1
           fi
           
-          # Configure git with PAT
+          # Configure git
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          
-          # Remove any existing credential helpers that might interfere
-          git config --global --unset credential.helper || true
-          git config --global --unset user.name || true
-          git config --global --unset user.email || true
-          
-          # Configure git user for this repo
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          
-          # Remove existing remote and add with PAT
-          git remote remove origin || true
-          if [ -n "$PAT_TOKEN" ]; then
-            echo "=== Using PAT Token ==="
-            # Ensure PAT is properly embedded
-            PAT_URL="https://${PAT_TOKEN}@github.com/dmitri166/ghost_on_prem_project.git"
-            echo "PAT URL: ${PAT_URL:0:20}...${PAT_URL: -20}"
-            git remote add origin "$PAT_URL"
-          else
-            echo "=== Using GITHUB_TOKEN (fallback) ==="
-            git remote add origin https://x-access-token:${{ github.token }}@github.com/dmitri166/ghost_on_prem_project.git
-          fi
-          
-          # Debug: Show updated remote
-          echo "=== Updated Remote ==="
-          git remote -v
           
           # Create and checkout new branch
           git checkout -b update-ghost-image-${{ github.run_number }}
@@ -1153,15 +1131,67 @@ jobs:
           # Commit changes
           git commit -m "ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}"
           
-          # Push branch to remote with verbose output
-          echo "=== Pushing branch ==="
-          git push -v origin update-ghost-image-${{ github.run_number }} 2>&1 || {
-            echo "=== Push failed, trying alternative method ==="
-            # Try with explicit URL
-            if [ -n "$PAT_TOKEN" ]; then
-              git push "https://${PAT_TOKEN}@github.com/dmitri166/ghost_on_prem_project.git" update-ghost-image-${{ github.run_number }}
-            fi
-          }
+          # Use GitHub API to create branch and push instead of git push
+          echo "=== Using GitHub API to push ==="
+          
+          # Get the base branch reference
+          BASE_SHA=$(git rev-parse HEAD~1)
+          echo "Base SHA: $BASE_SHA"
+          
+          # Create the branch using GitHub API
+          curl -X POST \
+            -H "Authorization: token $PAT_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/dmitri166/ghost_on_prem_project/git/refs \
+            -d "{
+              \"ref\": \"refs/heads/update-ghost-image-${{ github.run_number }}\",
+              \"sha\": \"$BASE_SHA\"
+            }"
+          
+          # Get the file content
+          DEV_CONTENT=$(cat applications/ghost-app/helm/values-dev.yaml | base64 -w 0)
+          STAGING_CONTENT=$(cat applications/ghost-app/helm/values-staging.yaml | base64 -w 0 2>/dev/null || echo "")
+          PROD_CONTENT=$(cat applications/ghost-app/helm/values-prod.yaml | base64 -w 0 2>/dev/null || echo "")
+          
+          # Update files using GitHub API
+          echo "=== Updating values-dev.yaml ==="
+          curl -X PUT \
+            -H "Authorization: token $PAT_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/dmitri166/ghost_on_prem_project/contents/applications/ghost-app/helm/values-dev.yaml \
+            -d "{
+              \"message\": \"ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}\",
+              \"content\": \"$DEV_CONTENT\",
+              \"branch\": \"update-ghost-image-${{ github.run_number }}\"
+            }"
+          
+          if [ -n "$STAGING_CONTENT" ]; then
+            echo "=== Updating values-staging.yaml ==="
+            curl -X PUT \
+              -H "Authorization: token $PAT_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              https://api.github.com/repos/dmitri166/ghost_on_prem_project/contents/applications/ghost-app/helm/values-staging.yaml \
+              -d "{
+                \"message\": \"ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}\",
+                \"content\": \"$STAGING_CONTENT\",
+                \"branch\": \"update-ghost-image-${{ github.run_number }}\"
+              }"
+          fi
+          
+          if [ -n "$PROD_CONTENT" ]; then
+            echo "=== Updating values-prod.yaml ==="
+            curl -X PUT \
+              -H "Authorization: token $PAT_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              https://api.github.com/repos/dmitri166/ghost_on_prem_project/contents/applications/ghost-app/helm/values-prod.yaml \
+              -d "{
+                \"message\": \"ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}\",
+                \"content\": \"$PROD_CONTENT\",
+                \"branch\": \"update-ghost-image-${{ github.run_number }}\"
+              }"
+          fi
+          
+          echo "✅ Files updated successfully via GitHub API!"
 
       - name: Create Pull Request for GitOps Update
         uses: actions/github-script@v7
