@@ -139,7 +139,7 @@ jobs:
           path: ghost_on_prem
           branch: update-ghost-image-${{ needs.extract-version.outputs.version }}
           base: master
-          title: release Update Ghost image to v${{ needs.extract-version.outputs.version }}
+          title: "release: Update Ghost image to v${{ needs.extract-version.outputs.version }}"
           body: |
             Ghost Release Update
             
@@ -166,7 +166,7 @@ jobs:
             - Triggered by: Tag v${{ needs.extract-version.outputs.version }}
             - Workflow: #${{ github.run_number }}
             - Commit: ${{ github.sha }}
-          commit-message: release: Update Ghost image to v${{ needs.extract-version.outputs.version }}
+          commit-message: "release: Update Ghost image to v${{ needs.extract-version.outputs.version }}"
           delete-branch: true
 
   # Create GitHub Release
