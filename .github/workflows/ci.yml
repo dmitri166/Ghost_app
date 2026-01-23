@@ -11,6 +11,11 @@ on:
       - 'v[0-9]+.*' # Matches any release branch, e.g. v6.0.3, v12.1.0
       - '[0-9]+.x' # Matches any major version branch, e.g. 5.x, 23.x
 
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
 env:
   FORCE_COLOR: 1
   HEAD_COMMIT: ${{ github.sha }}
@@ -1092,27 +1097,37 @@ jobs:
           fi
 
       - name: Commit and Push Changes
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_TOKEN }}
         run: |
           cd ghost_on_prem
           
-          # Debug: Show current git config and remotes
-          echo "=== Git Debug Info ==="
-          git config --list | grep -E "(user|remote|url)"
-          echo "=== Remote URLs ==="
-          git remote -v
-          echo "=== Current branch ==="
-          git branch
-          echo "=== PAT Check ==="
-          echo "PAT length: ${#REPO_TOKEN}"
-          echo "PAT starts with: ${REPO_TOKEN:0:10}..."
+          # Debug: Check PAT availability
+          echo "=== PAT Debug Info ==="
+          echo "PAT_TOKEN length: ${#PAT_TOKEN}"
+          if [ -n "$PAT_TOKEN" ]; then
+            echo "PAT_TOKEN starts with: ${PAT_TOKEN:0:10}..."
+          else
+            echo "❌ PAT_TOKEN is empty!"
+            echo "Available secrets check:"
+            echo "REPO_TOKEN exists: ${{ secrets.REPO_TOKEN != '' }}"
+            echo "GITHUB_TOKEN: ${{ github.token }}"
+          fi
           
-          # Configure git with PAT
+          # Configure git with PAT or fallback
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           
-          # Remove existing remote and add with PAT
-          git remote remove origin || true
-          git remote add origin https://${{ secrets.REPO_TOKEN }}@github.com/dmitri166/ghost_on_prem_project.git
+          # Try PAT first, then fallback to GITHUB_TOKEN
+          if [ -n "$PAT_TOKEN" ]; then
+            echo "=== Using PAT Token ==="
+            git remote remove origin || true
+            git remote add origin https://$PAT_TOKEN@github.com/dmitri166/ghost_on_prem_project.git
+          else
+            echo "=== Using GITHUB_TOKEN (fallback) ==="
+            git remote remove origin || true
+            git remote add origin https://x-access-token:${{ github.token }}@github.com/dmitri166/ghost_on_prem_project.git
+          fi
           
           # Debug: Show updated remote
           echo "=== Updated Remote ==="
