@@ -1,0 +1,226 @@
+name: Release & GitOps
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags like v1.0.0, v2.1.3, etc.
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: write
+
+env:
+  FORCE_COLOR: 1
+  HEAD_COMMIT: ${{ github.sha }}
+
+jobs:
+  # Extract version information from tag
+  extract-version:
+    name: "📋 Extract Version"
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image-tag: ${{ steps.image.outputs.image-tag }}
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: |
+          # Extract version from tag (e.g., v1.2.3 -> 1.2.3)
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      - name: Generate image tag
+        id: image
+        run: |
+          # Generate the image tag that was built by CI
+          IMAGE_TAG="ghcr.io/dmitri166/ghost-development:v${{ steps.version.outputs.version }}"
+          echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "Expected image tag: $IMAGE_TAG"
+
+  # Build and push versioned Docker image
+  build-versioned-image:
+    name: "🏗️ Build Versioned Image"
+    needs: extract-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/dmitri166/ghost-development
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.title=Ghost Development
+            org.opencontainers.image.description=Ghost v${{ needs.extract-version.outputs.version }}
+            org.opencontainers.image.vendor=TryGhost
+            org.opencontainers.image.version=v${{ needs.extract-version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=registry,ref=ghcr.io/dmitri166/ghost-development:cache-main
+          cache-to: type=registry,ref=ghcr.io/dmitri166/ghost-development:cache-main,mode=max
+
+  # GitOps Update - Update ghost_on_prem Helm values
+  update-gitops:
+    name: "🔄 Update GitOps"
+    needs: [extract-version, build-versioned-image]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ghost_on_prem repo
+        uses: actions/checkout@v4
+        with:
+          repository: dmitri166/ghost_on_prem_project
+          token: ${{ secrets.REPO_TOKEN }}
+          path: ghost_on_prem
+
+      - name: Update image tags in Helm values
+        run: |
+          # Get the image tag from version extraction
+          IMAGE_TAG="${{ needs.extract-version.outputs.image-tag }}"
+          VERSION="${{ needs.extract-version.outputs.version }}"
+          echo "Updating Helm values with image tag: $IMAGE_TAG"
+          
+          cd ghost_on_prem
+          
+          # Update development environment
+          if [ -f "applications/ghost-app/helm/values-dev.yaml" ]; then
+            sed -i "s|tag: \".*\"|tag: \"v$VERSION\"|" applications/ghost-app/helm/values-dev.yaml
+            echo "✅ Updated development environment with tag: v$VERSION"
+          else
+            echo "❌ File not found: applications/ghost-app/helm/values-dev.yaml"
+          fi
+
+          # Update staging environment
+          if [ -f "applications/ghost-app/helm/values-staging.yaml" ]; then
+            sed -i "s|tag: \".*\"|tag: \"v$VERSION\"|" applications/ghost-app/helm/values-staging.yaml
+            echo "✅ Updated staging environment with tag: v$VERSION"
+          else
+            echo "❌ File not found: applications/ghost-app/helm/values-staging.yaml"
+          fi
+
+          # Update production environment
+          if [ -f "applications/ghost-app/helm/values-prod.yaml" ]; then
+            sed -i "s|tag: \".*\"|tag: \"v$VERSION\"|" applications/ghost-app/helm/values-prod.yaml
+            echo "✅ Updated production environment with tag: v$VERSION"
+          else
+            echo "❌ File not found: applications/ghost-app/helm/values-prod.yaml"
+          fi
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.REPO_TOKEN }}
+          repository: dmitri166/ghost_on_prem_project
+          path: ghost_on_prem
+          branch: update-ghost-image-${{ needs.extract-version.outputs.version }}
+          base: master
+          title: release: Update Ghost image to v${{ needs.extract-version.outputs.version }}
+          body: |
+            🚀 **Ghost Release Update**
+            
+            **Version:** v${{ needs.extract-version.outputs.version }}
+            **Image:** ${{ needs.extract-version.outputs.image-tag }}
+            
+            ---
+            
+            📋 **Changes:**
+            - ✅ Updated Ghost image to v${{ needs.extract-version.outputs.version }}
+            - ✅ Ready for ArgoCD deployment
+            - ✅ All environments updated (dev, staging, prod)
+            
+            ---
+            
+            🔄 **Next Steps:**
+            1. Review the image tag changes below
+            2. Approve this PR to trigger ArgoCD deployment
+            3. Monitor deployment in your Kubernetes cluster
+            
+            ---
+            
+            📊 **Release Info:**
+            - **Triggered by:** Tag v${{ needs.extract-version.outputs.version }}
+            - **Workflow:** #${{ github.run_number }}
+            - **Commit:** ${{ github.sha }}
+          commit-message: release: Update Ghost image to v${{ needs.extract-version.outputs.version }}
+          delete-branch: true
+
+  # Create GitHub Release
+  create-release:
+    name: "🎉 Create Release"
+    needs: [extract-version, update-gitops]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Ghost v${{ needs.extract-version.outputs.version }}
+          body: |
+            🚀 **Ghost v${{ needs.extract-version.outputs.version }} Release**
+            
+            📦 **Docker Image:** ${{ needs.extract-version.outputs.image-tag }}
+            
+            ---
+            
+            ✨ **What's Included:**
+            - Latest Ghost application updates
+            - Security patches and improvements
+            - Ready for production deployment
+            
+            ---
+            
+            🔄 **Deployment:**
+            - GitOps PR created automatically
+            - ArgoCD will sync changes once approved
+            - All environments will be updated
+            
+            ---
+            
+            📊 **Build Info:**
+            - **Commit:** ${{ github.sha }}
+            - **Workflow:** #${{ github.run_number }}
+          draft: false
+          prerelease: false
+
+  # Release Summary
+  release-summary:
+    name: "📊 Release Summary"
+    needs: [extract-version, update-gitops, create-release]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Release Summary
+        run: |
+          echo "🎉 Release Complete!"
+          echo "🏷️ Version: v${{ needs.extract-version.outputs.version }}"
+          echo "📦 Image: ${{ needs.extract-version.outputs.image-tag }}"
+          echo "🔄 GitOps PR created"
+          echo "🎯 GitHub Release published"
+          echo "✅ Ready for deployment!"

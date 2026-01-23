@@ -10,8 +10,6 @@ on:
       - main
       - 'v[0-9]+.*' # Matches any release branch, e.g. v6.0.3, v12.1.0
       - '[0-9]+.x' # Matches any major version branch, e.g. 5.x, 23.x
-    tags:
-      - 'v*' # Trigger on version tags like v1.0.0, v2.1.3, etc.
 
 permissions:
   contents: read
@@ -986,9 +984,9 @@ jobs:
           images: |
             ${{ steps.strategy.outputs.image-name }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
             type=raw,value=latest,enable={{is_default_branch}}
           labels: |
             org.opencontainers.image.title=Ghost Development
@@ -1037,241 +1035,19 @@ jobs:
       image-digest: ${{ steps.build.outputs.digest }}
       is-fork-pr: ${{ steps.strategy.outputs.is-fork-pr }}
 
-  # GitOps Update - Update ghost_on_prem Helm values
-  update-gitops:
-    name: "🔄 Update GitOps"
-    needs: job_docker_build
+  # Summary
+  summary:
+    name: "📊 CI Summary"
+    needs: [job_docker_build]
     runs-on: ubuntu-latest
-    if: |
-      github.ref == 'refs/heads/main' || 
-      github.ref == 'refs/heads/master' ||
-      startsWith(github.ref, 'refs/heads/v')
+    if: always()
     steps:
-      - name: Extract Image Tag
-        id: extract-tag
+      - name: CI Summary
         run: |
-          # Get the actual image tag from build outputs
-          IMAGE_TAGS="${{ needs.job_docker_build.outputs.image-tags }}"
-          IMAGE_DIGEST="${{ needs.job_docker_build.outputs.image-digest }}"
-          
-          # Smart tag selection: SHA tag > latest > branch tag
-          SHA_TAG=$(echo "$IMAGE_TAGS" | grep "sha-" | head -n1 | tr -d '\r\n')
-          LATEST_TAG=$(echo "$IMAGE_TAGS" | grep ":latest" | head -n1 | tr -d '\r\n')
-          FIRST_TAG=$(echo "$IMAGE_TAGS" | head -n1 | tr -d '\r\n')
-          
-          # Choose the best tag
-          if [ -n "$SHA_TAG" ]; then
-            SELECTED_TAG="$SHA_TAG"
-            TAG=$(echo "$SELECTED_TAG" | sed 's|.*:||')
-          elif [ -n "$LATEST_TAG" ]; then
-            SELECTED_TAG="$LATEST_TAG"
-            TAG=$(echo "$SELECTED_TAG" | sed 's|.*:||')
-          else
-            SELECTED_TAG="$FIRST_TAG"
-            TAG=$(echo "$SELECTED_TAG" | sed 's|.*:||')
-          fi
-          
-          echo "Selected image: $SELECTED_TAG"
-          echo "Extracted tag: $TAG"
-          
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "full-image=$SELECTED_TAG" >> $GITHUB_OUTPUT
-
-      - name: Checkout ghost_on_prem repo
-        uses: actions/checkout@v4
-        with:
-          repository: dmitri166/ghost_on_prem_project
-          token: ${{ secrets.REPO_TOKEN }}
-          path: ghost_on_prem
-
-      - name: Update image tags in Helm values
-        run: |
-          # Get the image tag from previous step
-          IMAGE_TAG="${{ steps.extract-tag.outputs.tag }}"
-          echo "Updating Helm values with image tag: $IMAGE_TAG"
-          
-          cd ghost_on_prem
-          
-          # Debug: Show what files actually exist
-          echo "=== Repository structure ==="
-          find . -name "*.yaml" -o -name "*.yml" | head -20
-          
-          echo "=== Checking for Helm values files ==="
-          ls -la applications/ghost-app/helm/ 2>/dev/null || echo "❌ applications/ghost-app/helm/ not found"
-          find . -name "values*.yaml" 2>/dev/null || echo "❌ No values*.yaml files found"
-          
-          # Update development environment
-          if [ -f "applications/ghost-app/helm/values-dev.yaml" ]; then
-            sed -i "s|tag:.*|tag: $IMAGE_TAG|" applications/ghost-app/helm/values-dev.yaml
-            echo "✅ Updated development environment with tag: $IMAGE_TAG"
-          else
-            echo "❌ File not found: applications/ghost-app/helm/values-dev.yaml"
-          fi
-
-          # Update staging environment
-          if [ -f "applications/ghost-app/helm/values-staging.yaml" ]; then
-            sed -i "s|tag:.*|tag: $IMAGE_TAG|" applications/ghost-app/helm/values-staging.yaml
-            echo "✅ Updated staging environment with tag: $IMAGE_TAG"
-          else
-            echo "❌ File not found: applications/ghost-app/helm/values-staging.yaml"
-          fi
-
-          # Update production environment
-          if [ -f "applications/ghost-app/helm/values-prod.yaml" ]; then
-            sed -i "s|tag:.*|tag: $IMAGE_TAG|" applications/ghost-app/helm/values-prod.yaml
-            echo "✅ Updated production environment with tag: $IMAGE_TAG"
-          else
-            echo "❌ File not found: applications/ghost-app/helm/values-prod.yaml"
-          fi
-          
-          # Use GitHub API to create branch and update files
-          echo "=== Using GitHub API for all operations ==="
-          
-          PAT_TOKEN="${{ secrets.REPO_TOKEN }}"
-          BRANCH_NAME="update-ghost-image-${{ github.run_number }}"
-          
-          # First, check if files exist in the target repository
-          echo "=== Checking if files exist in target repository ==="
-          for file in applications/ghost-app/helm/values-dev.yaml applications/ghost-app/helm/values-staging.yaml applications/ghost-app/helm/values-prod.yaml; do
-            FILE_CHECK=$(curl -s -H "Authorization: token $PAT_TOKEN" \
-              https://api.github.com/repos/dmitri166/ghost_on_prem_project/contents/$file)
-            
-            if echo "$FILE_CHECK" | grep -q "Not Found"; then
-              echo "❌ File not found: $file"
-            else
-              echo "✅ File exists: $file"
-            fi
-          done
-          
-          # Get base SHA from master
-          echo "Getting base SHA from master..."
-          BASE_SHA=$(curl -s -H "Authorization: token $PAT_TOKEN" \
-            https://api.github.com/repos/dmitri166/ghost_on_prem_project/git/refs/heads/master | \
-            jq -r .object.sha)
-          
-          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "null" ]; then
-            echo "❌ Failed to get base SHA from master!"
-            exit 1
-          fi
-          
-          echo "Base SHA: $BASE_SHA"
-          
-          # Create branch from master
-          echo "Creating branch: $BRANCH_NAME from master"
-          BRANCH_RESPONSE=$(curl -X POST \
-            -H "Authorization: token $PAT_TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/dmitri166/ghost_on_prem_project/git/refs \
-            -d "{
-              \"ref\": \"refs/heads/$BRANCH_NAME\",
-              \"sha\": \"$BASE_SHA\"
-            }")
-          
-          echo "Branch creation response: $BRANCH_RESPONSE"
-          
-          # Check if branch creation was successful
-          if echo "$BRANCH_RESPONSE" | grep -q "error"; then
-            echo "❌ Branch creation failed!"
-            echo "$BRANCH_RESPONSE"
-            exit 1
-          fi
-          
-          # Wait a moment for branch to be fully created
-          sleep 2
-          
-          # Check if branch was created successfully
-          BRANCH_CHECK=$(curl -s -H "Authorization: token $PAT_TOKEN" \
-            https://api.github.com/repos/dmitri166/ghost_on_prem_project/git/refs/heads/$BRANCH_NAME)
-          
-          echo "Branch check response: $BRANCH_CHECK"
-          
-          if echo "$BRANCH_CHECK" | grep -q "Not Found"; then
-            echo "❌ Branch creation failed - branch not found!"
-            exit 1
-          fi
-          
-          echo "✅ Branch created successfully!"
-          
-          # Now update each file using GitHub API on the new branch
-          FILES_UPDATED=0
-          for file in applications/ghost-app/helm/values-dev.yaml applications/ghost-app/helm/values-staging.yaml applications/ghost-app/helm/values-prod.yaml; do
-            if [ -f "$file" ]; then
-              echo "=== Updating $file ==="
-              
-              # Get current file SHA
-              echo "Getting current SHA for $file..."
-              FILE_INFO=$(curl -s -H "Authorization: token $PAT_TOKEN" \
-                https://api.github.com/repos/dmitri166/ghost_on_prem_project/contents/$file?ref=$BRANCH_NAME)
-              
-              CURRENT_SHA=$(echo "$FILE_INFO" | jq -r .sha)
-              echo "Current SHA: $CURRENT_SHA"
-              
-              CONTENT=$(cat "$file" | base64 -w 0)
-              echo "Content length: ${#CONTENT}"
-              
-              UPDATE_RESPONSE=$(curl -X PUT \
-                -H "Authorization: token $PAT_TOKEN" \
-                -H "Accept: application/vnd.github.v3+json" \
-                https://api.github.com/repos/dmitri166/ghost_on_prem_project/contents/$file \
-                -d "{
-                  \"message\": \"ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}\",
-                  \"content\": \"$CONTENT\",
-                  \"sha\": \"$CURRENT_SHA\",
-                  \"branch\": \"$BRANCH_NAME\"
-                }")
-              
-              echo "Update response for $file: $UPDATE_RESPONSE"
-              
-              if echo "$UPDATE_RESPONSE" | grep -q "error"; then
-                echo "❌ File update failed for $file!"
-                echo "$UPDATE_RESPONSE"
-              else
-                echo "✅ File updated successfully: $file"
-                FILES_UPDATED=$((FILES_UPDATED + 1))
-              fi
-            else
-              echo "❌ Local file not found: $file"
-            fi
-          done
-          
-          if [ $FILES_UPDATED -eq 0 ]; then
-            echo "❌ No files were updated! Cannot create PR."
-            exit 1
-          fi
-          
-          echo "✅ Files updated successfully via GitHub API! Updated $FILES_UPDATED files."
-
-      - name: Create Pull Request for GitOps Update
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { repo, owner, token } = context.repo;
-            
-            // Create PR body in parts to avoid parsing issues
-            const repoInfo = `Repository: ${{ needs.job_docker_build.outputs.image-tags }}`;
-            const digestInfo = `Digest: ${{ needs.job_docker_build.outputs.image-digest }}`;
-            const workflowInfo = `This PR was automatically created by Ghost_app CI workflow #${{ github.run_number }}`;
-            
-            const body = `Automated Ghost Image Update. ${repoInfo}. ${digestInfo}. Source: Ghost_app CI pipeline. Pipeline Status: Image built successfully, Security scan completed, Ready for deployment review. Next Steps: Review the image tag changes below, Approve this PR to trigger ArgoCD deployment, Monitor deployment in your Kubernetes cluster. ${workflowInfo}.`;
-            
-            // Create PR using GitHub API with correct base branch
-            await github.rest.pulls.create({
-              owner: 'dmitri166',
-              repo: 'ghost_on_prem_project',
-              title: `ci: Update Ghost image to ${{ github.sha }}`,
-              head: `update-ghost-image-${{ github.run_number }}`,
-              base: 'master', // Use master as the default branch
-              body: body
-            });
-          github-token: ${{ secrets.REPO_TOKEN }}
-
-      - name: GitOps Summary
-        run: |
-          echo "✅ GitOps configurations updated!"
+          echo "✅ CI Pipeline Complete!"
           echo "🏷️ Image: ${{ needs.job_docker_build.outputs.image-tags }}"
           echo "🔍 Digest: ${{ needs.job_docker_build.outputs.image-digest }}"
-          echo "🔄 ArgoCD will automatically sync these changes"
-          echo "📦 Repository: dmitri166/ghost_on_prem"
+          echo "📦 Ready for release when tagged"
 
   job_inspect_image:
     name: Inspect Docker Image
