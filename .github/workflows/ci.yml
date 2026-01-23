@@ -1130,7 +1130,7 @@ jobs:
           
           # Configure git to use PAT token for authentication
           git config credential.helper "store --file=/tmp/git-credentials"
-          echo "https://dmitri166:$PAT_TOKEN@github.com" > /tmp/git-credentials
+          printf "https://dmitri166:%s@github.com\n" "$PAT_TOKEN" > /tmp/git-credentials
           
           # Create and checkout new branch
           git checkout -b update-ghost-image-${{ github.run_number }}
