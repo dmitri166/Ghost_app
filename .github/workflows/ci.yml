@@ -1134,6 +1134,11 @@ jobs:
             https://api.github.com/repos/dmitri166/ghost_on_prem_project/git/refs/heads/master | \
             jq -r .object.sha)
           
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "null" ]; then
+            echo "❌ Failed to get base SHA from master!"
+            exit 1
+          fi
+          
           echo "Base SHA: $BASE_SHA"
           
           # Create branch from master
@@ -1149,6 +1154,13 @@ jobs:
           
           echo "Branch creation response: $BRANCH_RESPONSE"
           
+          # Check if branch creation was successful
+          if echo "$BRANCH_RESPONSE" | grep -q "error"; then
+            echo "❌ Branch creation failed!"
+            echo "$BRANCH_RESPONSE"
+            exit 1
+          fi
+          
           # Wait a moment for branch to be fully created
           sleep 2
           
@@ -1159,13 +1171,14 @@ jobs:
           echo "Branch check response: $BRANCH_CHECK"
           
           if echo "$BRANCH_CHECK" | grep -q "Not Found"; then
-            echo "❌ Branch creation failed!"
+            echo "❌ Branch creation failed - branch not found!"
             exit 1
           fi
           
           echo "✅ Branch created successfully!"
           
           # Now update each file using GitHub API on the new branch
+          FILES_UPDATED=0
           for file in applications/ghost-app/helm/values-dev.yaml applications/ghost-app/helm/values-staging.yaml applications/ghost-app/helm/values-prod.yaml; do
             if [ -f "$file" ]; then
               echo "=== Updating $file ==="
@@ -1189,13 +1202,19 @@ jobs:
                 echo "$UPDATE_RESPONSE"
               else
                 echo "✅ File updated successfully: $file"
+                FILES_UPDATED=$((FILES_UPDATED + 1))
               fi
             else
               echo "❌ Local file not found: $file"
             fi
           done
           
-          echo "✅ Files updated successfully via GitHub API!"
+          if [ $FILES_UPDATED -eq 0 ]; then
+            echo "❌ No files were updated! Cannot create PR."
+            exit 1
+          fi
+          
+          echo "✅ Files updated successfully via GitHub API! Updated $FILES_UPDATED files."
 
       - name: Create Pull Request for GitOps Update
         uses: actions/github-script@v7
