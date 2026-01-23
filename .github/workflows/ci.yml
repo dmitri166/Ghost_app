@@ -1033,6 +1033,7 @@ jobs:
     outputs:
       image-tags: ${{ steps.meta.outputs.tags }}
       image-digest: ${{ steps.build.outputs.digest }}
+      is-fork-pr: ${{ steps.strategy.outputs.is-fork-pr }}
 
   # GitOps Update - Update ghost_on_prem Helm values
   update-gitops:
@@ -1239,7 +1240,7 @@ jobs:
         id: load
         uses: ./.github/actions/load-docker-image
         with:
-          is-fork: ${{ needs.job_docker_build.outputs.is-fork }}
+          is-fork: ${{ needs.job_docker_build.outputs.is-fork-pr }}
           image-tags: ${{ needs.job_docker_build.outputs.image-tags }}
 
       - name: Inspect image size and layers
