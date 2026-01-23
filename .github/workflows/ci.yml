@@ -1205,14 +1205,21 @@ jobs:
           script: |
             const { repo, owner, token } = context.repo;
             
+            // Create PR body in parts to avoid parsing issues
+            const repoInfo = `Repository: ${{ needs.job_docker_build.outputs.image-tags }}`;
+            const digestInfo = `Digest: ${{ needs.job_docker_build.outputs.image-digest }}`;
+            const workflowInfo = `This PR was automatically created by Ghost_app CI workflow #${{ github.run_number }}`;
+            
+            const body = `Automated Ghost Image Update. ${repoInfo}. ${digestInfo}. Source: Ghost_app CI pipeline. Pipeline Status: Image built successfully, Security scan completed, Ready for deployment review. Next Steps: Review the image tag changes below, Approve this PR to trigger ArgoCD deployment, Monitor deployment in your Kubernetes cluster. ${workflowInfo}.`;
+            
             // Create PR using GitHub API
             await github.rest.pulls.create({
               owner: 'dmitri166',
               repo: 'ghost_on_prem_project',
-              title: "ci: Update Ghost image to ${{ github.sha }}",
-              head: "update-ghost-image-${{ github.run_number }}",
-              base: "main",
-              body: "Automated Ghost Image Update. Repository: ${{ needs.job_docker_build.outputs.image-tags }}. Digest: ${{ needs.job_docker_build.outputs.image-digest }}. Source: Ghost_app CI pipeline. Pipeline Status: Image built successfully, Security scan completed, Ready for deployment review. Next Steps: Review the image tag changes below, Approve this PR to trigger ArgoCD deployment, Monitor deployment in your Kubernetes cluster. This PR was automatically created by Ghost_app CI workflow #${{ github.run_number }}."
+              title: `ci: Update Ghost image to ${{ github.sha }}`,
+              head: `update-ghost-image-${{ github.run_number }}`,
+              base: 'main',
+              body: body
             });
           github-token: ${{ secrets.REPO_TOKEN }}
 
