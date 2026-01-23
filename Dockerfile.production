@@ -13,6 +13,7 @@ RUN apt-get update && \
     jq \
     libjemalloc2 \
     python3 \
+    git \
     && rm -rf /var/lib/apt/lists/* && \
     apt clean
 
@@ -189,6 +190,7 @@ RUN apt-get update && \
     curl \
     jq \
     libjemalloc2 \
+    git \
     && rm -rf /var/lib/apt/lists/* && \
     apt clean
 
