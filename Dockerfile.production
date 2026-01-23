@@ -209,12 +209,13 @@ COPY --from=admin-react-builder --chown=ghost:ghost /home/ghost/ghost/core/core/
 
 # Copy Ghost core files
 COPY --chown=ghost:ghost ghost/core/package.json /var/lib/ghost/versions/ghost/
+COPY --chown=ghost:ghost ghost/core/package-lock.json /var/lib/ghost/versions/ghost/
 COPY --chown=ghost:ghost ghost/core/index.js /var/lib/ghost/versions/ghost/
 COPY --chown=ghost:ghost ghost/core/ghost.js /var/lib/ghost/versions/ghost/
 
 # Install production dependencies only
 WORKDIR /var/lib/ghost/versions/ghost
-RUN npm ci --only=production && \
+RUN npm ci --omit=dev && \
     npm cache clean --force
 
 # Switch to ghost user
