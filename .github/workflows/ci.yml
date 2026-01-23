@@ -1114,18 +1114,29 @@ jobs:
             echo "GITHUB_TOKEN: ${{ github.token }}"
           fi
           
-          # Configure git with PAT or fallback
+          # Configure git with PAT
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           
-          # Try PAT first, then fallback to GITHUB_TOKEN
+          # Remove any existing credential helpers that might interfere
+          git config --global --unset credential.helper || true
+          git config --global --unset user.name || true
+          git config --global --unset user.email || true
+          
+          # Configure git user for this repo
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          # Remove existing remote and add with PAT
+          git remote remove origin || true
           if [ -n "$PAT_TOKEN" ]; then
             echo "=== Using PAT Token ==="
-            git remote remove origin || true
-            git remote add origin https://$PAT_TOKEN@github.com/dmitri166/ghost_on_prem_project.git
+            # Ensure PAT is properly embedded
+            PAT_URL="https://${PAT_TOKEN}@github.com/dmitri166/ghost_on_prem_project.git"
+            echo "PAT URL: ${PAT_URL:0:20}...${PAT_URL: -20}"
+            git remote add origin "$PAT_URL"
           else
             echo "=== Using GITHUB_TOKEN (fallback) ==="
-            git remote remove origin || true
             git remote add origin https://x-access-token:${{ github.token }}@github.com/dmitri166/ghost_on_prem_project.git
           fi
           
@@ -1142,9 +1153,15 @@ jobs:
           # Commit changes
           git commit -m "ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}"
           
-          # Push branch to remote
+          # Push branch to remote with verbose output
           echo "=== Pushing branch ==="
-          git push -v origin update-ghost-image-${{ github.run_number }}
+          git push -v origin update-ghost-image-${{ github.run_number }} 2>&1 || {
+            echo "=== Push failed, trying alternative method ==="
+            # Try with explicit URL
+            if [ -n "$PAT_TOKEN" ]; then
+              git push "https://${PAT_TOKEN}@github.com/dmitri166/ghost_on_prem_project.git" update-ghost-image-${{ github.run_number }}
+            fi
+          }
 
       - name: Create Pull Request for GitOps Update
         uses: actions/github-script@v7
