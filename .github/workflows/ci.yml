@@ -1137,75 +1137,12 @@ jobs:
           # Commit changes
           git commit -m "ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}"
           
-          # Use GitHub API to create branch and push instead of git push
-          echo "=== Using GitHub API to push ==="
+          # Push the branch using git with PAT token
+          echo "=== Pushing branch to remote ==="
+          git remote set-url origin https://dmitri166:$PAT_TOKEN@github.com/dmitri166/ghost_on_prem_project.git
+          git push -u origin update-ghost-image-${{ github.run_number }}
           
-          # Get the base branch reference
-          BASE_SHA=$(git rev-parse HEAD~1)
-          echo "Base SHA: $BASE_SHA"
-          
-          # Get the base SHA from master branch
-          BASE_SHA=$(curl -s -H "Authorization: token $PAT_TOKEN" \
-            https://api.github.com/repos/dmitri166/ghost_on_prem_project/git/refs/heads/master | \
-            jq -r .object.sha)
-          
-          echo "Base SHA from master: $BASE_SHA"
-          
-          # Create the new branch first
-          echo "=== Creating branch update-ghost-image-${{ github.run_number }} ==="
-          curl -X POST \
-            -H "Authorization: token $PAT_TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/dmitri166/ghost_on_prem_project/git/refs \
-            -d "{
-              \"ref\": \"refs/heads/update-ghost-image-${{ github.run_number }}\",
-              \"sha\": \"$BASE_SHA\"
-            }"
-          
-          # Get the file content
-          DEV_CONTENT=$(cat applications/ghost-app/helm/values-dev.yaml | base64 -w 0)
-          STAGING_CONTENT=$(cat applications/ghost-app/helm/values-staging.yaml | base64 -w 0 2>/dev/null || echo "")
-          PROD_CONTENT=$(cat applications/ghost-app/helm/values-prod.yaml | base64 -w 0 2>/dev/null || echo "")
-          
-          # Update files using GitHub API
-          echo "=== Updating values-dev.yaml ==="
-          curl -X PUT \
-            -H "Authorization: token $PAT_TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/dmitri166/ghost_on_prem_project/contents/applications/ghost-app/helm/values-dev.yaml \
-            -d "{
-              \"message\": \"ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}\",
-              \"content\": \"$DEV_CONTENT\",
-              \"branch\": \"update-ghost-image-${{ github.run_number }}\"
-            }"
-          
-          if [ -n "$STAGING_CONTENT" ]; then
-            echo "=== Updating values-staging.yaml ==="
-            curl -X PUT \
-              -H "Authorization: token $PAT_TOKEN" \
-              -H "Accept: application/vnd.github.v3+json" \
-              https://api.github.com/repos/dmitri166/ghost_on_prem_project/contents/applications/ghost-app/helm/values-staging.yaml \
-              -d "{
-                \"message\": \"ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}\",
-                \"content\": \"$STAGING_CONTENT\",
-                \"branch\": \"update-ghost-image-${{ github.run_number }}\"
-              }"
-          fi
-          
-          if [ -n "$PROD_CONTENT" ]; then
-            echo "=== Updating values-prod.yaml ==="
-            curl -X PUT \
-              -H "Authorization: token $PAT_TOKEN" \
-              -H "Accept: application/vnd.github.v3+json" \
-              https://api.github.com/repos/dmitri166/ghost_on_prem_project/contents/applications/ghost-app/helm/values-prod.yaml \
-              -d "{
-                \"message\": \"ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}\",
-                \"content\": \"$PROD_CONTENT\",
-                \"branch\": \"update-ghost-image-${{ github.run_number }}\"
-              }"
-          fi
-          
-          echo "✅ Files updated successfully via GitHub API!"
+          echo "✅ Files updated and pushed successfully!"
 
       - name: Create Pull Request for GitOps Update
         uses: actions/github-script@v7
