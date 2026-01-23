@@ -1088,25 +1088,38 @@ jobs:
           IMAGE_TAG="${{ steps.extract-tag.outputs.tag }}"
           echo "Updating Helm values with image tag: $IMAGE_TAG"
           
-          # Checkout just to read the files (no push needed)
           cd ghost_on_prem
+          
+          # Debug: Show what files actually exist
+          echo "=== Repository structure ==="
+          find . -name "*.yaml" -o -name "*.yml" | head -20
+          
+          echo "=== Checking for Helm values files ==="
+          ls -la applications/ghost-app/helm/ 2>/dev/null || echo "❌ applications/ghost-app/helm/ not found"
+          find . -name "values*.yaml" 2>/dev/null || echo "❌ No values*.yaml files found"
           
           # Update development environment
           if [ -f "applications/ghost-app/helm/values-dev.yaml" ]; then
             sed -i "s|tag:.*|tag: $IMAGE_TAG|" applications/ghost-app/helm/values-dev.yaml
             echo "✅ Updated development environment with tag: $IMAGE_TAG"
+          else
+            echo "❌ File not found: applications/ghost-app/helm/values-dev.yaml"
           fi
 
           # Update staging environment
           if [ -f "applications/ghost-app/helm/values-staging.yaml" ]; then
             sed -i "s|tag:.*|tag: $IMAGE_TAG|" applications/ghost-app/helm/values-staging.yaml
             echo "✅ Updated staging environment with tag: $IMAGE_TAG"
+          else
+            echo "❌ File not found: applications/ghost-app/helm/values-staging.yaml"
           fi
 
           # Update production environment
           if [ -f "applications/ghost-app/helm/values-prod.yaml" ]; then
             sed -i "s|tag:.*|tag: $IMAGE_TAG|" applications/ghost-app/helm/values-prod.yaml
             echo "✅ Updated production environment with tag: $IMAGE_TAG"
+          else
+            echo "❌ File not found: applications/ghost-app/helm/values-prod.yaml"
           fi
           
           # Use GitHub API to create branch and update files
