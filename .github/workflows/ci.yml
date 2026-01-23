@@ -1095,9 +1095,28 @@ jobs:
         run: |
           cd ghost_on_prem
           
+          # Debug: Show current git config and remotes
+          echo "=== Git Debug Info ==="
+          git config --list | grep -E "(user|remote|url)"
+          echo "=== Remote URLs ==="
+          git remote -v
+          echo "=== Current branch ==="
+          git branch
+          echo "=== PAT Check ==="
+          echo "PAT length: ${#REPO_TOKEN}"
+          echo "PAT starts with: ${REPO_TOKEN:0:10}..."
+          
           # Configure git with PAT
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
+          
+          # Remove existing remote and add with PAT
+          git remote remove origin || true
+          git remote add origin https://${{ secrets.REPO_TOKEN }}@github.com/dmitri166/ghost_on_prem_project.git
+          
+          # Debug: Show updated remote
+          echo "=== Updated Remote ==="
+          git remote -v
           
           # Create and checkout new branch
           git checkout -b update-ghost-image-${{ github.run_number }}
@@ -1108,8 +1127,9 @@ jobs:
           # Commit changes
           git commit -m "ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}"
           
-          # Push branch to remote using PAT
-          git push https://${{ secrets.REPO_TOKEN }}@github.com/dmitri166/ghost_on_prem_project.git update-ghost-image-${{ github.run_number }}
+          # Push branch to remote
+          echo "=== Pushing branch ==="
+          git push -v origin update-ghost-image-${{ github.run_number }}
 
       - name: Create Pull Request for GitOps Update
         uses: actions/github-script@v7
