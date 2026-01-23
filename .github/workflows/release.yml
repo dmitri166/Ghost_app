@@ -141,37 +141,37 @@ jobs:
           base: master
           title: release: Update Ghost image to v${{ needs.extract-version.outputs.version }}
           body: |
-            🚀 **Ghost Release Update**
+            Ghost Release Update
             
-            **Version:** v${{ needs.extract-version.outputs.version }}
-            **Image:** ${{ needs.extract-version.outputs.image-tag }}
-            
-            ---
-            
-            📋 **Changes:**
-            - ✅ Updated Ghost image to v${{ needs.extract-version.outputs.version }}
-            - ✅ Ready for ArgoCD deployment
-            - ✅ All environments updated (dev, staging, prod)
+            Version: v${{ needs.extract-version.outputs.version }}
+            Image: ${{ needs.extract-version.outputs.image-tag }}
             
             ---
             
-            🔄 **Next Steps:**
+            Changes:
+            - Updated Ghost image to v${{ needs.extract-version.outputs.version }}
+            - Ready for ArgoCD deployment
+            - All environments updated (dev, staging, prod)
+            
+            ---
+            
+            Next Steps:
             1. Review the image tag changes below
             2. Approve this PR to trigger ArgoCD deployment
             3. Monitor deployment in your Kubernetes cluster
             
             ---
             
-            📊 **Release Info:**
-            - **Triggered by:** Tag v${{ needs.extract-version.outputs.version }}
-            - **Workflow:** #${{ github.run_number }}
-            - **Commit:** ${{ github.sha }}
+            Release Info:
+            - Triggered by: Tag v${{ needs.extract-version.outputs.version }}
+            - Workflow: #${{ github.run_number }}
+            - Commit: ${{ github.sha }}
           commit-message: release: Update Ghost image to v${{ needs.extract-version.outputs.version }}
           delete-branch: true
 
   # Create GitHub Release
   create-release:
-    name: "🎉 Create Release"
+    name: "Create Release"
     needs: [extract-version, update-gitops]
     runs-on: ubuntu-latest
     steps:
@@ -183,44 +183,44 @@ jobs:
           tag_name: ${{ github.ref }}
           release_name: Ghost v${{ needs.extract-version.outputs.version }}
           body: |
-            🚀 **Ghost v${{ needs.extract-version.outputs.version }} Release**
+            Ghost v${{ needs.extract-version.outputs.version }} Release
             
-            📦 **Docker Image:** ${{ needs.extract-version.outputs.image-tag }}
+            Docker Image: ${{ needs.extract-version.outputs.image-tag }}
             
             ---
             
-            ✨ **What's Included:**
+            What's Included:
             - Latest Ghost application updates
             - Security patches and improvements
             - Ready for production deployment
             
             ---
             
-            🔄 **Deployment:**
+            Deployment:
             - GitOps PR created automatically
             - ArgoCD will sync changes once approved
             - All environments will be updated
             
             ---
             
-            📊 **Build Info:**
-            - **Commit:** ${{ github.sha }}
-            - **Workflow:** #${{ github.run_number }}
+            Build Info:
+            - Commit: ${{ github.sha }}
+            - Workflow: #${{ github.run_number }}
           draft: false
           prerelease: false
 
   # Release Summary
   release-summary:
-    name: "📊 Release Summary"
+    name: "Release Summary"
     needs: [extract-version, update-gitops, create-release]
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Release Summary
         run: |
-          echo "🎉 Release Complete!"
-          echo "🏷️ Version: v${{ needs.extract-version.outputs.version }}"
-          echo "📦 Image: ${{ needs.extract-version.outputs.image-tag }}"
-          echo "🔄 GitOps PR created"
-          echo "🎯 GitHub Release published"
-          echo "✅ Ready for deployment!"
+          echo "Release Complete!"
+          echo "Version: v${{ needs.extract-version.outputs.version }}"
+          echo "Image: ${{ needs.extract-version.outputs.image-tag }}"
+          echo "GitOps PR created"
+          echo "GitHub Release published"
+          echo "Ready for deployment!"
