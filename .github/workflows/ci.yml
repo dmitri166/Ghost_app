@@ -1212,13 +1212,13 @@ jobs:
             
             const body = `Automated Ghost Image Update. ${repoInfo}. ${digestInfo}. Source: Ghost_app CI pipeline. Pipeline Status: Image built successfully, Security scan completed, Ready for deployment review. Next Steps: Review the image tag changes below, Approve this PR to trigger ArgoCD deployment, Monitor deployment in your Kubernetes cluster. ${workflowInfo}.`;
             
-            // Create PR using GitHub API
+            // Create PR using GitHub API with correct base branch
             await github.rest.pulls.create({
               owner: 'dmitri166',
               repo: 'ghost_on_prem_project',
               title: `ci: Update Ghost image to ${{ github.sha }}`,
               head: `update-ghost-image-${{ github.run_number }}`,
-              base: 'main',
+              base: 'master', // Use master as the default branch
               body: body
             });
           github-token: ${{ secrets.REPO_TOKEN }}
