@@ -984,12 +984,9 @@ jobs:
           images: |
             ${{ steps.strategy.outputs.image-name }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
           labels: |
             org.opencontainers.image.title=Ghost Development
             org.opencontainers.image.description=Ghost development build

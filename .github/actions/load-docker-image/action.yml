@@ -39,26 +39,20 @@ runs:
       id: pull
       shell: bash
       run: |
-        # Smart tag selection: Semantic version > latest > branch tag
+        # Semantic version tag selection
         SEMVER_TAG=$(echo "${{ inputs.image-tags }}" | grep -E ":[0-9]+\.[0-9]+\.[0-9]+" | head -n1 | tr -d '\r\n')
-        LATEST_TAG=$(echo "${{ inputs.image-tags }}" | grep ":latest" | head -n1 | tr -d '\r\n')
-        FIRST_TAG=$(echo "${{ inputs.image-tags }}" | head -n1 | tr -d '\r\n')
         
         echo "Available tags analysis:"
         echo "- Semantic version tag: '$SEMVER_TAG'"
-        echo "- Latest tag: '$LATEST_TAG'"
-        echo "- First tag: '$FIRST_TAG'"
         
-        # Choose the best tag
+        # Choose the tag
         if [ -n "$SEMVER_TAG" ]; then
           IMAGE_TAG="$SEMVER_TAG"
           echo "Selected semantic version tag: $IMAGE_TAG"
-        elif [ -n "$LATEST_TAG" ]; then
-          IMAGE_TAG="$LATEST_TAG"
-          echo "Selected latest tag: $IMAGE_TAG"
         else
-          IMAGE_TAG="$FIRST_TAG"
-          echo "Selected first tag (fallback): $IMAGE_TAG"
+          echo "❌ No semantic version tags found!"
+          echo "💡 Create a Git tag (e.g., v1.0.0) and push it to generate version tags"
+          exit 1
         fi
         
         echo "Pulling image from registry: $IMAGE_TAG"
