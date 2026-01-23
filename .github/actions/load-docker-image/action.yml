@@ -38,7 +38,28 @@ runs:
       if: inputs.is-fork == 'false'
       shell: bash
       run: |
-        IMAGE_TAG=$(echo "${{ inputs.image-tags }}" | head -n1)
+        # Smart tag selection: SHA tag > latest > branch tag
+        SHA_TAG=$(echo "${{ inputs.image-tags }}" | grep "sha-" | head -n1 | tr -d '\r\n')
+        LATEST_TAG=$(echo "${{ inputs.image-tags }}" | grep ":latest" | head -n1 | tr -d '\r\n')
+        FIRST_TAG=$(echo "${{ inputs.image-tags }}" | head -n1 | tr -d '\r\n')
+        
+        echo "Available tags analysis:"
+        echo "- SHA tag: '$SHA_TAG'"
+        echo "- Latest tag: '$LATEST_TAG'"
+        echo "- First tag: '$FIRST_TAG'"
+        
+        # Choose the best tag
+        if [ -n "$SHA_TAG" ]; then
+          IMAGE_TAG="$SHA_TAG"
+          echo "Selected SHA tag (most reliable): $IMAGE_TAG"
+        elif [ -n "$LATEST_TAG" ]; then
+          IMAGE_TAG="$LATEST_TAG"
+          echo "Selected latest tag: $IMAGE_TAG"
+        else
+          IMAGE_TAG="$FIRST_TAG"
+          echo "Selected first tag (fallback): $IMAGE_TAG"
+        fi
+        
         echo "Pulling image from registry: $IMAGE_TAG"
         docker pull "$IMAGE_TAG"
 
@@ -46,7 +67,20 @@ runs:
       id: verify
       shell: bash
       run: |
-        IMAGE_TAG=$(echo "${{ inputs.image-tags }}" | head -n1)
+        # Smart tag selection: SHA tag > latest > branch tag
+        SHA_TAG=$(echo "${{ inputs.image-tags }}" | grep "sha-" | head -n1 | tr -d '\r\n')
+        LATEST_TAG=$(echo "${{ inputs.image-tags }}" | grep ":latest" | head -n1 | tr -d '\r\n')
+        FIRST_TAG=$(echo "${{ inputs.image-tags }}" | head -n1 | tr -d '\r\n')
+        
+        # Choose the best tag
+        if [ -n "$SHA_TAG" ]; then
+          IMAGE_TAG="$SHA_TAG"
+        elif [ -n "$LATEST_TAG" ]; then
+          IMAGE_TAG="$LATEST_TAG"
+        else
+          IMAGE_TAG="$FIRST_TAG"
+        fi
+        
         echo "Checking for image: $IMAGE_TAG"
         echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
