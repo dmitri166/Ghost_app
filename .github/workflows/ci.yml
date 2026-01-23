@@ -1062,7 +1062,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: dmitri166/ghost_on_prem_project
-          token: ${{ secrets.REPO_TOKEN }}
+          github-token: ${{ secrets.REPO_TOKEN }}
           path: ghost_on_prem
 
       - name: Update image tags in Helm values
