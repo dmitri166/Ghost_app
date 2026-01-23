@@ -1115,6 +1115,19 @@ jobs:
           PAT_TOKEN="${{ secrets.REPO_TOKEN }}"
           BRANCH_NAME="update-ghost-image-${{ github.run_number }}"
           
+          # First, check if files exist in the target repository
+          echo "=== Checking if files exist in target repository ==="
+          for file in applications/ghost-app/helm/values-dev.yaml applications/ghost-app/helm/values-staging.yaml applications/ghost-app/helm/values-prod.yaml; do
+            FILE_CHECK=$(curl -s -H "Authorization: token $PAT_TOKEN" \
+              https://api.github.com/repos/dmitri166/ghost_on_prem_project/contents/$file)
+            
+            if echo "$FILE_CHECK" | grep -q "Not Found"; then
+              echo "❌ File not found: $file"
+            else
+              echo "✅ File exists: $file"
+            fi
+          done
+          
           # Get base SHA from master
           echo "Getting base SHA from master..."
           BASE_SHA=$(curl -s -H "Authorization: token $PAT_TOKEN" \
@@ -1177,6 +1190,8 @@ jobs:
               else
                 echo "✅ File updated successfully: $file"
               fi
+            else
+              echo "❌ Local file not found: $file"
             fi
           done
           
