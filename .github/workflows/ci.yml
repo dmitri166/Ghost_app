@@ -1128,6 +1128,10 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           
+          # Configure git to use PAT token for authentication
+          git config credential.helper "store --file=/tmp/git-credentials"
+          echo "https://dmitri166:$PAT_TOKEN@github.com" > /tmp/git-credentials
+          
           # Create and checkout new branch
           git checkout -b update-ghost-image-${{ github.run_number }}
           
@@ -1137,9 +1141,9 @@ jobs:
           # Commit changes
           git commit -m "ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}"
           
-          # Push the branch using git with PAT token
+          # Push the branch using configured credentials
           echo "=== Pushing branch to remote ==="
-          git remote set-url origin https://dmitri166:$PAT_TOKEN@github.com/dmitri166/ghost_on_prem_project.git
+          git remote set-url origin https://github.com/dmitri166/ghost_on_prem_project.git
           git push -u origin update-ghost-image-${{ github.run_number }}
           
           echo "✅ Files updated and pushed successfully!"
