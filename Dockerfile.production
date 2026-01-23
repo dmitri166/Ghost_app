@@ -9,6 +9,7 @@ ARG NODE_VERSION=22.18.0
 FROM node:$NODE_VERSION-bullseye-slim AS base
 RUN apt-get update && \
     apt-get install -y \
+    build-essential \
     curl \
     jq \
     libjemalloc2 \
