@@ -1,7 +1,7 @@
 # Production Dockerfile for Ghost
 # Multi-stage build to create a production-ready Ghost image
 
-ARG NODE_VERSION=22.18.0
+ARG NODE_VERSION=22
 
 # --------------------
 # Base Image
@@ -207,16 +207,16 @@ RUN mkdir -p /var/lib/ghost/content && \
 COPY --from=ghost-assets-builder --chown=ghost:ghost /home/ghost/ghost /var/lib/ghost/versions/ghost
 COPY --from=admin-react-builder --chown=ghost:ghost /home/ghost/ghost/core/core/built/admin /var/lib/ghost/versions/ghost/core/core/built/admin
 
-# Copy Ghost core files
+# Copy Ghost core files and root yarn.lock
 COPY --chown=ghost:ghost ghost/core/package.json /var/lib/ghost/versions/ghost/
-COPY --chown=ghost:ghost ghost/core/package-lock.json /var/lib/ghost/versions/ghost/
+COPY --chown=ghost:ghost yarn.lock /var/lib/ghost/versions/ghost/
 COPY --chown=ghost:ghost ghost/core/index.js /var/lib/ghost/versions/ghost/
 COPY --chown=ghost:ghost ghost/core/ghost.js /var/lib/ghost/versions/ghost/
 
 # Install production dependencies only
 WORKDIR /var/lib/ghost/versions/ghost
-RUN npm ci --omit=dev && \
-    npm cache clean --force
+RUN yarn install --production && \
+    yarn cache clean
 
 # Switch to ghost user
 USER ghost
