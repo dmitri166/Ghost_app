@@ -1279,27 +1279,7 @@ jobs:
               title: `ci: Update Ghost image to ${github.sha}`,
               head: `update-ghost-image-${github.run_number}`,
               base: 'main',
-              body: `
-## Automated Ghost Image Update
-
-### Image Information:
-- **Repository:** ${needs.job_docker_build.outputs.image-tags}
-- **Digest:** ${needs.job_docker_build.outputs.image-digest}
-- **Source:** Ghost_app CI pipeline
-
-### Pipeline Status:
-- [x] Image built successfully
-- [x] Security scan completed
-- [x] Ready for deployment review
-
-### Next Steps:
-1. Review the image tag changes below
-2. Approve this PR to trigger ArgoCD deployment
-3. Monitor deployment in your Kubernetes cluster
-
----
-*This PR was automatically created by Ghost_app CI workflow #${github.run_number}*
-`,
+              body: "## Automated Ghost Image Update\n\n### Image Information:\n- **Repository:** ${needs.job_docker_build.outputs.image-tags}\n- **Digest:** ${needs.job_docker_build.outputs.image-digest}\n- **Source:** Ghost_app CI pipeline\n\n### Pipeline Status:\n- [x] Image built successfully\n- [x] Security scan completed\n- [x] Ready for deployment review\n\n### Next Steps:\n1. Review the image tag changes below\n2. Approve this PR to trigger ArgoCD deployment\n3. Monitor deployment in your Kubernetes cluster\n\n---\n*This PR was automatically created by Ghost_app CI workflow #${github.run_number}*",
             });
           github-token: ${{ secrets.REPO_TOKEN }}
 
