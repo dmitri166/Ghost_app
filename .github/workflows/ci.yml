@@ -1195,6 +1195,15 @@ jobs:
           for file in applications/ghost-app/helm/values-dev.yaml applications/ghost-app/helm/values-staging.yaml applications/ghost-app/helm/values-prod.yaml; do
             if [ -f "$file" ]; then
               echo "=== Updating $file ==="
+              
+              # Get current file SHA
+              echo "Getting current SHA for $file..."
+              FILE_INFO=$(curl -s -H "Authorization: token $PAT_TOKEN" \
+                https://api.github.com/repos/dmitri166/ghost_on_prem_project/contents/$file?ref=$BRANCH_NAME)
+              
+              CURRENT_SHA=$(echo "$FILE_INFO" | jq -r .sha)
+              echo "Current SHA: $CURRENT_SHA"
+              
               CONTENT=$(cat "$file" | base64 -w 0)
               echo "Content length: ${#CONTENT}"
               
@@ -1205,6 +1214,7 @@ jobs:
                 -d "{
                   \"message\": \"ci: Update Ghost image to ${{ needs.job_docker_build.outputs.image-digest }}\",
                   \"content\": \"$CONTENT\",
+                  \"sha\": \"$CURRENT_SHA\",
                   \"branch\": \"$BRANCH_NAME\"
                 }")
               
