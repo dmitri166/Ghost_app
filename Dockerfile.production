@@ -205,8 +205,9 @@ COPY --from=ghost-assets-builder --chown=ghost:ghost /home/ghost/ghost /var/lib/
 COPY --from=admin-react-builder --chown=ghost:ghost /home/ghost/ghost/core/core/built/admin /var/lib/ghost/versions/ghost/core/core/built/admin
 
 # Copy Ghost core files
-COPY --chown=ghost:ghost ghost/package.json /var/lib/ghost/versions/ghost/
-COPY --chown=ghost:ghost ghost/index.js /var/lib/ghost/versions/ghost/
+COPY --chown=ghost:ghost ghost/core/package.json /var/lib/ghost/versions/ghost/
+COPY --chown=ghost:ghost ghost/core/index.js /var/lib/ghost/versions/ghost/
+COPY --chown=ghost:ghost ghost/core/ghost.js /var/lib/ghost/versions/ghost/
 
 # Install production dependencies only
 WORKDIR /var/lib/ghost/versions/ghost
@@ -230,5 +231,5 @@ EXPOSE 2368
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:2368/ || exit 1
 
-# Production entrypoint
-ENTRYPOINT ["node", "current/index.js"]
+# Production entrypoint - use Ghost's start command
+ENTRYPOINT ["node", "current/index.js", "start"]
