@@ -110,8 +110,8 @@ jobs:
           # Update development environment
           if [ -f "applications/ghost-app/helm/values-dev.yaml" ]; then
             sed -i "s|repository: .*|repository: ghcr.io/dmitri166/ghost-production|" applications/ghost-app/helm/values-dev.yaml
-            sed -i "s|tag: \".*\"|tag: \"$VERSION\"|" applications/ghost-app/helm/values-dev.yaml
-            echo "✅ Updated development environment with tag: $VERSION"
+            sed -i "s|tag: \".*\"|tag: \"v$VERSION\"|" applications/ghost-app/helm/values-dev.yaml
+            echo "✅ Updated development environment with tag: v$VERSION"
           else
             echo "❌ File not found: applications/ghost-app/helm/values-dev.yaml"
           fi
@@ -119,8 +119,8 @@ jobs:
           # Update staging environment
           if [ -f "applications/ghost-app/helm/values-staging.yaml" ]; then
             sed -i "s|repository: .*|repository: ghcr.io/dmitri166/ghost-production|" applications/ghost-app/helm/values-staging.yaml
-            sed -i "s|tag: \".*\"|tag: \"$VERSION\"|" applications/ghost-app/helm/values-staging.yaml
-            echo "✅ Updated staging environment with tag: $VERSION"
+            sed -i "s|tag: \".*\"|tag: \"v$VERSION\"|" applications/ghost-app/helm/values-staging.yaml
+            echo "✅ Updated staging environment with tag: v$VERSION"
           else
             echo "❌ File not found: applications/ghost-app/helm/values-staging.yaml"
           fi
@@ -128,8 +128,8 @@ jobs:
           # Update production environment
           if [ -f "applications/ghost-app/helm/values-prod.yaml" ]; then
             sed -i "s|repository: .*|repository: ghcr.io/dmitri166/ghost-production|" applications/ghost-app/helm/values-prod.yaml
-            sed -i "s|tag: \".*\"|tag: \"$VERSION\"|" applications/ghost-app/helm/values-prod.yaml
-            echo "✅ Updated production environment with tag: $VERSION"
+            sed -i "s|tag: \".*\"|tag: \"v$VERSION\"|" applications/ghost-app/helm/values-prod.yaml
+            echo "✅ Updated production environment with tag: v$VERSION"
           else
             echo "❌ File not found: applications/ghost-app/helm/values-prod.yaml"
           fi
@@ -152,7 +152,7 @@ jobs:
             ---
             
             Changes:
-            - Updated Ghost production image to ${{ needs.extract-version.outputs.version }}
+            - Updated Ghost production image to v${{ needs.extract-version.outputs.version }}
             - Switched to production-ready Ghost build
             - Ready for ArgoCD deployment
             - All environments updated (dev, staging, prod)
