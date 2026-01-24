@@ -6,6 +6,12 @@ FROM ghost:5.75.1
 # Set environment variables for production
 ENV NODE_ENV=production
 ENV url=http://ghost-prod.local:2368
+ENV database__client=mysql
+ENV database__connection__host=mysql-prod
+ENV database__connection__port=3306
+ENV database__connection__user=ghost
+ENV database__connection__password=ghost123
+ENV database__connection__database=ghost_prod
 
 # Copy custom configuration if needed
 COPY config.production.json /var/lib/ghost/config.production.json
