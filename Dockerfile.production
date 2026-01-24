@@ -1,11 +1,11 @@
 # Production Dockerfile for Ghost
-# Use official Ghost production image as base
+# Use official Ghost 5.75.1 as base
 
-FROM ghost:6-alpine
+FROM ghost:5.75.1
 
 # Set environment variables for production
 ENV NODE_ENV=production
-ENV url=http://ghost.local:2368
+ENV url=http://ghost-prod.local:2368
 
 # Copy custom configuration if needed
 COPY config.production.json /var/lib/ghost/config.production.json
