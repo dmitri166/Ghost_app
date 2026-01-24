@@ -1,0 +1,37 @@
+{
+  "url": "http://ghost.local:2368",
+  "server": {
+    "port": 2368,
+    "host": "0.0.0.0"
+  },
+  "database": {
+    "client": "mysql",
+    "connection": {
+      "host": "mysql.database.svc.cluster.local",
+      "port": 3306,
+      "user": "ghost",
+      "password": "ghost_password",
+      "database": "ghost"
+    }
+  },
+  "mail": {
+    "transport": "SMTP",
+    "options": {
+      "service": "Mailgun",
+      "auth": {
+        "user": "postmaster@mg.example.com",
+        "pass": "your-mailgun-api-key"
+      }
+    }
+  },
+  "logging": {
+    "level": "info",
+    "rotation": {
+      "enabled": true
+    }
+  },
+  "process": "systemd",
+  "paths": {
+    "contentPath": "/var/lib/ghost/content"
+  }
+}
